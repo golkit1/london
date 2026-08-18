@@ -129,6 +129,12 @@
   .stop.done::before{ border-color: var(--ok); }
   .stop.collapsed{ padding-bottom: 14px; }
   .stop.collapsed .stop-body{ display:none; }
+  .stop.dragging{ opacity: 0.4; }
+  .drag-handle{
+    cursor: grab; color: var(--slate); font-size: 15px;
+    padding: 2px 4px; flex-shrink:0; user-select:none; touch-action:none;
+  }
+  .drag-handle:active{ cursor: grabbing; }
   .stop-head{ display:flex; align-items:flex-start; justify-content: space-between; gap:8px; }
   .collapse-toggle{
     background:none; border:none; color: var(--slate);
@@ -208,7 +214,7 @@
   .budget-summary .amount.over{ color: var(--red); }
   .b-row{
     display:grid;
-    grid-template-columns: 1fr 92px 64px 20px;
+    grid-template-columns: 16px 1fr 92px 64px 20px;
     gap: 6px;
     align-items:center;
     background: var(--navy-2);
@@ -217,6 +223,7 @@
     padding: 10px 12px;
     margin-bottom: 8px;
   }
+  .b-row.dragging{ opacity: 0.4; }
   .b-row input, .b-row textarea{
     background: var(--field-bg);
     border:1px solid var(--line);
@@ -237,7 +244,7 @@
     font-size: 12px;
   }
   .b-head{
-    display:grid; grid-template-columns: 1fr 92px 64px 20px;
+    display:grid; grid-template-columns: 16px 1fr 92px 64px 20px;
     gap:6px; padding: 0 12px; margin-bottom:6px;
     font-size: 11px; color: var(--slate); font-family:'JetBrains Mono',monospace;
   }
@@ -245,25 +252,49 @@
   .empty{ text-align:center; color: var(--slate); font-size:14px; padding: 30px 10px; }
 
   /* ---- Gear ---- */
-  .gear-row{
-    display:flex; align-items:flex-start; gap:10px;
+  .gear-cat{
     background: var(--navy-2); border:1px solid var(--line);
-    border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
+    border-radius: 12px; padding: 14px 14px 10px; margin-bottom: 14px;
   }
-  .gear-row input[type="checkbox"]{ margin-top: 9px; width:16px; height:16px; flex-shrink:0; }
-  .gear-body{ flex:1; min-width:0; }
+  .gear-cat.dragging{ opacity: 0.4; }
+  .gear-cat-head{
+    display:flex; align-items:center; gap:8px; margin-bottom: 10px;
+  }
+  .gear-cat-title{
+    flex:1; background: transparent; border:none; color: var(--paper);
+    font-family:'Suez One', serif; font-size: 16px;
+    padding: 2px 0;
+  }
+  .gear-cat-title:focus{ outline:none; border-bottom: 1px solid var(--gold); }
+  .gear-cat-progress{
+    font-family:'JetBrains Mono', monospace; font-size: 11px; color: var(--slate);
+    white-space: nowrap;
+  }
+  .gear-progress-track{
+    height: 3px; background: var(--line); border-radius: 2px; overflow:hidden;
+    margin-bottom: 12px;
+  }
+  .gear-progress-bar{ height:100%; background: var(--ok); border-radius:2px; transition: width .25s; }
+  .gear-row{
+    display:flex; align-items:center; gap:8px;
+    padding: 7px 0;
+    border-top: 1px solid var(--line);
+  }
+  .gear-row.dragging{ opacity: 0.4; }
+  .gear-row:first-of-type{ border-top: none; }
+  .gear-row input[type="checkbox"]{ width:16px; height:16px; flex-shrink:0; }
   .gear-name{
-    width:100%; background: transparent; border:none; color: var(--paper);
-    font-family:'Heebo', sans-serif; font-weight:700; font-size: 15px;
+    flex:1; min-width:0; background: transparent; border:none; color: var(--paper);
+    font-family:'Heebo', sans-serif; font-weight:500; font-size: 14px;
     padding: 4px 0;
   }
   .gear-name:focus{ outline:none; border-bottom: 1px solid var(--gold); }
   .gear-row.checked .gear-name{ text-decoration: line-through; color: var(--slate); }
-  .gear-notes{
-    width:100%; background: var(--field-bg); border:1px solid var(--line);
-    border-radius: 8px; color: var(--paper); font-family:'Heebo', sans-serif;
-    font-size: 12px; padding: 6px 9px; resize: vertical; min-height: 30px;
-    margin-top: 4px;
+  .gear-cat-addrow{ display:flex; justify-content:flex-start; margin-top: 8px; }
+  .gear-add-item{
+    background:none; border:1px dashed var(--line); color: var(--slate);
+    font-family:'Heebo', sans-serif; font-size: 12px; font-weight:700;
+    padding: 6px 12px; border-radius: 999px; cursor:pointer;
   }
   .save-note{
     text-align:center; font-size: 11px; color: var(--slate);
@@ -305,7 +336,7 @@
       <div><div class="label">סה"כ הוצאות</div><div class="amount" id="total-actual">£0</div></div>
     </div>
     <div class="b-head">
-      <span>פריט</span><span style="text-align:center">תאריך</span><span style="text-align:center">סכום</span><span></span>
+      <span></span><span>פריט</span><span style="text-align:center">תאריך</span><span style="text-align:center">סכום</span><span></span>
     </div>
     <div id="budget-list"></div>
     <div class="add-row"><button class="add-btn" id="add-budget">+ הוסף הוצאה</button></div>
@@ -313,7 +344,7 @@
 
   <section class="view" id="view-gear">
     <div id="gear-list"></div>
-    <div class="add-row"><button class="add-btn" id="add-gear">+ הוסף פריט ציוד</button></div>
+    <div class="add-row"><button class="add-btn" id="add-category">+ הוסף קטגוריה</button></div>
   </section>
 
   <div class="save-note" id="save-note">נשמר</div>
@@ -366,9 +397,20 @@ window.storage = {
 };
 
 let stops = [];
+let dismissedSeeds = [];
 let budgetItems = [];
 let gearItems = [];
+let gearCategories = [];
 let saveTimer = null;
+
+function defaultGearCategories(){
+  return [
+    { id: cryptoId(), title: '🪪 מסמכים ותיעוד' },
+    { id: cryptoId(), title: '💻 ציוד עבודה' },
+    { id: cryptoId(), title: '👕 ביגוד' },
+    { id: cryptoId(), title: '🎒 שונות' }
+  ];
+}
 
 function flashSave(){
   const el = document.getElementById('save-note');
@@ -393,6 +435,10 @@ async function loadAll(){
     stops = s ? JSON.parse(s.value) : defaultStops();
   }catch(e){ stops = defaultStops(); }
   try{
+    const ds = await window.storage.get('london-dismissed-seeds', false);
+    dismissedSeeds = ds ? JSON.parse(ds.value) : [];
+  }catch(e){ dismissedSeeds = []; }
+  try{
     const b = await window.storage.get('london-budget', false);
     budgetItems = b ? JSON.parse(b.value) : [];
   }catch(e){ budgetItems = []; }
@@ -400,6 +446,14 @@ async function loadAll(){
     const g = await window.storage.get('london-gear', false);
     gearItems = g ? JSON.parse(g.value) : [];
   }catch(e){ gearItems = []; }
+  try{
+    const gc = await window.storage.get('london-gear-categories', false);
+    gearCategories = gc ? JSON.parse(gc.value) : defaultGearCategories();
+  }catch(e){ gearCategories = defaultGearCategories(); }
+  if(gearCategories.length === 0){
+    gearCategories = defaultGearCategories();
+    saveGearCategories();
+  }
   seedExtraStops();
   renderStops();
   renderBudget();
@@ -417,6 +471,7 @@ function seedExtraStops(){
   ];
   let changed = false;
   seeds.forEach(seed=>{
+    if(dismissedSeeds.includes(seed.seedId)) return;
     if(!stops.some(s=>s.seedId === seed.seedId)){
       stops.push({ id: cryptoId(), seedId: seed.seedId, name: seed.name, link: seed.link, notes: seed.notes, done:false });
       changed = true;
@@ -456,6 +511,9 @@ async function saveBudget(){
 async function saveGear(){
   await saveWithRetry('london-gear', JSON.stringify(gearItems));
 }
+async function saveGearCategories(){
+  await saveWithRetry('london-gear-categories', JSON.stringify(gearCategories));
+}
 
 function renderStops(){
   const list = document.getElementById('stops-list');
@@ -466,8 +524,9 @@ function renderStops(){
   list.innerHTML = stops.map(s => {
     const gmapsHref = buildMapsHref(s);
     return `
-    <div class="stop ${s.done ? 'done':''} ${s.collapsed ? 'collapsed':''}" data-id="${s.id}">
+    <div class="stop ${s.done ? 'done':''} ${s.collapsed ? 'collapsed':''}" data-id="${s.id}" draggable="true">
       <div class="stop-head">
+        <span class="drag-handle" title="גרור לשינוי סדר">⠿</span>
         <button class="collapse-toggle" data-collapse="${s.id}" title="מזער/הרחב">${s.collapsed ? '▾' : '▸'}</button>
         <input class="stop-name" data-field="name" placeholder="שם המקום" value="${escapeHtml(s.name)}">
         <button class="del-stop" data-del="${s.id}" title="מחק">×</button>
@@ -501,7 +560,8 @@ function renderBudget(){
     list.innerHTML = '<div class="empty">אין עדיין הוצאות — הוסף את הראשונה</div>';
   } else {
     list.innerHTML = budgetItems.map(b => `
-      <div class="b-row" data-id="${b.id}">
+      <div class="b-row" data-id="${b.id}" draggable="true">
+        <span class="drag-handle" title="גרור לשינוי סדר">⠿</span>
         <input data-field="desc" placeholder="תיאור" value="${escapeHtml(b.desc)}">
         <input class="date" type="date" data-field="date" value="${b.date ?? ''}">
         <input class="num" data-field="actual" inputmode="decimal" placeholder="0" value="${b.actual ?? ''}">
@@ -515,19 +575,34 @@ function renderBudget(){
 
 function renderGear(){
   const list = document.getElementById('gear-list');
-  if(gearItems.length === 0){
-    list.innerHTML = '<div class="empty">אין עדיין פריטי ציוד — הוסף את הראשון</div>';
+  if(gearCategories.length === 0){
+    list.innerHTML = '<div class="empty">אין עדיין קטגוריות — הוסף את הראשונה</div>';
     return;
   }
-  list.innerHTML = gearItems.map(g => `
-    <div class="gear-row ${g.checked ? 'checked':''}" data-id="${g.id}">
-      <input type="checkbox" data-done="${g.id}" ${g.checked?'checked':''}>
-      <div class="gear-body">
+  list.innerHTML = gearCategories.map(cat => {
+    const items = gearItems.filter(g => g.categoryId === cat.id);
+    const doneCount = items.filter(g=>g.checked).length;
+    const pct = items.length ? Math.round(doneCount / items.length * 100) : 0;
+    const rows = items.map(g => `
+      <div class="gear-row ${g.checked ? 'checked':''}" data-id="${g.id}" draggable="true">
+        <span class="drag-handle" title="גרור לשינוי סדר">⠿</span>
+        <input type="checkbox" data-done="${g.id}" ${g.checked?'checked':''}>
         <input class="gear-name" data-field="name" placeholder="שם הפריט" value="${escapeHtml(g.name)}">
-        <textarea class="gear-notes" data-field="notes" placeholder="הערות...">${escapeHtml(g.notes)}</textarea>
+        <button class="del-stop" data-del-g="${g.id}" title="מחק">×</button>
+      </div>`).join('');
+    return `
+    <div class="gear-cat" data-cat-id="${cat.id}" draggable="true">
+      <div class="gear-cat-head">
+        <span class="drag-handle" title="גרור לשינוי סדר">⠿</span>
+        <input class="gear-cat-title" data-cat-field="title" value="${escapeHtml(cat.title)}" placeholder="שם הקטגוריה">
+        <span class="gear-cat-progress">${doneCount}/${items.length}</span>
+        <button class="del-stop" data-del-cat="${cat.id}" title="מחק קטגוריה">×</button>
       </div>
-      <button class="del-stop" data-del-g="${g.id}" title="מחק">×</button>
-    </div>`).join('');
+      <div class="gear-progress-track"><div class="gear-progress-bar" style="width:${pct}%"></div></div>
+      <div class="gear-items" data-cat-items="${cat.id}">${rows}</div>
+      <div class="gear-cat-addrow"><button class="gear-add-item" data-add-item="${cat.id}">+ הוסף פריט</button></div>
+    </div>`;
+  }).join('');
 }
 
 // tabs
@@ -556,12 +631,12 @@ document.getElementById('add-budget').addEventListener('click', ()=>{
   saveBudget();
 });
 
-// add gear
-document.getElementById('add-gear').addEventListener('click', ()=>{
-  gearItems.push({ id: cryptoId(), name:'', notes:'', checked:false });
+// add category
+document.getElementById('add-category').addEventListener('click', ()=>{
+  gearCategories.push({ id: cryptoId(), title: '' });
   renderGear();
-  saveGear();
-  const inputs = document.querySelectorAll('.gear-name');
+  saveGearCategories();
+  const inputs = document.querySelectorAll('.gear-cat-title');
   if(inputs.length) inputs[inputs.length-1].focus();
 });
 
@@ -592,7 +667,12 @@ document.getElementById('stops-list').addEventListener('change', (e)=>{
 
 document.getElementById('stops-list').addEventListener('click', (e)=>{
   if(e.target.dataset.del){
+    const removed = stops.find(s=>s.id === e.target.dataset.del);
     stops = stops.filter(s=>s.id !== e.target.dataset.del);
+    if(removed && removed.seedId && !dismissedSeeds.includes(removed.seedId)){
+      dismissedSeeds.push(removed.seedId);
+      saveWithRetry('london-dismissed-seeds', JSON.stringify(dismissedSeeds));
+    }
     renderStops();
     saveStops();
     return;
@@ -628,15 +708,29 @@ document.getElementById('budget-list').addEventListener('click', (e)=>{
 
 // delegated events - gear
 document.getElementById('gear-list').addEventListener('input', (e)=>{
+  // item name field
   const row = e.target.closest('.gear-row');
-  if(!row) return;
-  const id = row.dataset.id;
-  const field = e.target.dataset.field;
-  const g = gearItems.find(x=>x.id===id);
-  if(!g || !field) return;
-  g[field] = e.target.value;
-  clearTimeout(window.__gearSaveT);
-  window.__gearSaveT = setTimeout(saveGear, 500);
+  if(row){
+    const id = row.dataset.id;
+    const field = e.target.dataset.field;
+    const g = gearItems.find(x=>x.id===id);
+    if(g && field){
+      g[field] = e.target.value;
+      clearTimeout(window.__gearSaveT);
+      window.__gearSaveT = setTimeout(saveGear, 500);
+    }
+    return;
+  }
+  // category title field
+  const catEl = e.target.closest('.gear-cat');
+  if(catEl && e.target.dataset.catField){
+    const cat = gearCategories.find(c=>c.id === catEl.dataset.catId);
+    if(cat){
+      cat[e.target.dataset.catField] = e.target.value;
+      clearTimeout(window.__gearCatSaveT);
+      window.__gearCatSaveT = setTimeout(saveGearCategories, 500);
+    }
+  }
 });
 
 document.getElementById('gear-list').addEventListener('change', (e)=>{
@@ -651,7 +745,91 @@ document.getElementById('gear-list').addEventListener('click', (e)=>{
     gearItems = gearItems.filter(g=>g.id !== e.target.dataset.delG);
     renderGear();
     saveGear();
+    return;
   }
+  if(e.target.dataset.delCat){
+    const catId = e.target.dataset.delCat;
+    gearCategories = gearCategories.filter(c=>c.id !== catId);
+    gearItems = gearItems.filter(g=>g.categoryId !== catId);
+    renderGear();
+    saveGearCategories();
+    saveGear();
+    return;
+  }
+  if(e.target.dataset.addItem){
+    const catId = e.target.dataset.addItem;
+    gearItems.push({ id: cryptoId(), name:'', categoryId: catId, checked:false });
+    renderGear();
+    saveGear();
+    const catEl = document.querySelector(`.gear-cat[data-cat-id="${catId}"]`);
+    if(catEl){
+      const inputs = catEl.querySelectorAll('.gear-name');
+      if(inputs.length) inputs[inputs.length-1].focus();
+    }
+  }
+});
+
+// ---- drag & drop reordering ----
+function reorderArrayFromDOM(containerEl, itemSelector, idAttr, array){
+  const ids = Array.from(containerEl.querySelectorAll(itemSelector)).map(el => el.dataset[idAttr]);
+  array.sort((a,b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+}
+
+function setupDragReorder(container, itemSelector, onDrop){
+  let dragging = null;
+  container.addEventListener('dragstart', (e)=>{
+    if(!e.target.matches(itemSelector)) return;
+    dragging = e.target;
+    dragging.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    try{ e.dataTransfer.setData('text/plain', ''); }catch(_){}
+  });
+  container.addEventListener('dragend', ()=>{
+    if(dragging) dragging.classList.remove('dragging');
+    dragging = null;
+  });
+  container.addEventListener('dragover', (e)=>{
+    if(!dragging) return;
+    const item = e.target.closest(itemSelector);
+    if(!item || item === dragging || item.parentNode !== dragging.parentNode) return;
+    e.preventDefault();
+    const rect = item.getBoundingClientRect();
+    const before = (e.clientY - rect.top) < rect.height / 2;
+    item.parentNode.insertBefore(dragging, before ? item : item.nextSibling);
+  });
+  container.addEventListener('drop', (e)=>{
+    if(!dragging) return;
+    e.preventDefault();
+    onDrop();
+  });
+}
+
+setupDragReorder(document.getElementById('stops-list'), '.stop', ()=>{
+  reorderArrayFromDOM(document.getElementById('stops-list'), '.stop', 'id', stops);
+  saveStops();
+});
+
+setupDragReorder(document.getElementById('budget-list'), '.b-row', ()=>{
+  reorderArrayFromDOM(document.getElementById('budget-list'), '.b-row', 'id', budgetItems);
+  saveBudget();
+});
+
+setupDragReorder(document.getElementById('gear-list'), '.gear-cat', ()=>{
+  reorderArrayFromDOM(document.getElementById('gear-list'), '.gear-cat', 'catId', gearCategories);
+  saveGearCategories();
+});
+
+setupDragReorder(document.getElementById('gear-list'), '.gear-row', ()=>{
+  document.querySelectorAll('.gear-items').forEach(container=>{
+    const ids = Array.from(container.querySelectorAll('.gear-row')).map(el => el.dataset.id);
+    if(ids.length === 0) return;
+    // reposition these items (in their new relative order) within the full gearItems array
+    const positions = [];
+    gearItems.forEach((g, i)=>{ if(ids.includes(g.id)) positions.push(i); });
+    const reordered = ids.map(id => gearItems.find(g=>g.id===id));
+    positions.forEach((pos, i)=>{ gearItems[pos] = reordered[i]; });
+  });
+  saveGear();
 });
 
 // theme
