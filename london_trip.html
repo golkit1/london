@@ -58,6 +58,15 @@
     font-size: 16px; cursor:pointer;
     display:flex; align-items:center; justify-content:center;
   }
+  .sync-status{
+    display:flex; align-items:center; gap:6px; margin-top:8px;
+    font-family:'JetBrains Mono', monospace; font-size: 11px; color: var(--slate);
+  }
+  .sync-dot{
+    width:8px; height:8px; border-radius:50%; background: var(--slate); flex-shrink:0;
+  }
+  .sync-dot.ok{ background: var(--ok); }
+  .sync-dot.error{ background: var(--red); }
   .eyebrow{
     font-family:'JetBrains Mono', monospace;
     font-size: 11px;
@@ -331,6 +340,7 @@
     <div class="eyebrow">WORK TRIP</div>
     <h1>לונדון</h1>
     <div class="subtitle">שבוע עבודה — מקומות, ניווט, תקציב וציוד</div>
+    <div class="sync-status" id="sync-status"><span class="sync-dot" id="sync-dot"></span><span id="sync-text">בודק חיבור...</span></div>
   </div>
 </header>
 
@@ -399,6 +409,31 @@ try{
   firebase.initializeApp(firebaseConfig);
   fbDb = firebase.database();
 }catch(e){ console.warn('Firebase init failed, falling back to local-only storage', e); }
+
+function updateSyncStatus(){
+  const dot = document.getElementById('sync-dot');
+  const text = document.getElementById('sync-text');
+  if(!dot || !text) return;
+  if(!fbDb){
+    dot.className = 'sync-dot error';
+    text.textContent = 'לא מחובר לענן — נשמר רק במכשיר הזה';
+    return;
+  }
+  try{
+    fbDb.ref('.info/connected').on('value', (snap)=>{
+      if(snap.val() === true){
+        dot.className = 'sync-dot ok';
+        text.textContent = 'מסונכרן';
+      } else {
+        dot.className = 'sync-dot error';
+        text.textContent = 'לא מחובר — נשמר רק במכשיר הזה';
+      }
+    });
+  }catch(e){
+    dot.className = 'sync-dot error';
+    text.textContent = 'שגיאת חיבור';
+  }
+}
 
 window.storage = {
   async get(key){
@@ -485,9 +520,9 @@ async function loadAll(){
   }catch(e){ gearItems = []; }
   try{
     const gc = await window.storage.get('london-gear-categories', false);
-    gearCategories = gc ? JSON.parse(gc.value) : defaultGearCategories();
-  }catch(e){ gearCategories = defaultGearCategories(); }
-  if(gearCategories.length === 0){
+    gearCategories = gc ? JSON.parse(gc.value) : [];
+  }catch(e){ gearCategories = []; }
+  if(gearCategories.length === 0 && gearItems.length === 0){
     gearCategories = defaultGearCategories();
     saveGearCategories();
   }
@@ -497,9 +532,9 @@ async function loadAll(){
   }catch(e){ taskItems = []; }
   try{
     const tc = await window.storage.get('london-task-categories', false);
-    taskCategories = tc ? JSON.parse(tc.value) : defaultTaskCategories();
-  }catch(e){ taskCategories = defaultTaskCategories(); }
-  if(taskCategories.length === 0){
+    taskCategories = tc ? JSON.parse(tc.value) : [];
+  }catch(e){ taskCategories = []; }
+  if(taskCategories.length === 0 && taskItems.length === 0){
     taskCategories = defaultTaskCategories();
     saveTaskCategories();
   }
@@ -508,6 +543,7 @@ async function loadAll(){
   renderBudget();
   renderGear();
   renderTasks();
+  updateSyncStatus();
 }
 
 function seedExtraStops(){
