@@ -339,6 +339,7 @@
     <button class="tab-btn active" data-view="places">מקומות</button>
     <button class="tab-btn" data-view="budget">תקציב</button>
     <button class="tab-btn" data-view="gear">ציוד</button>
+    <button class="tab-btn" data-view="tasks">משימות</button>
   </div>
 </nav>
 
@@ -367,6 +368,11 @@
   <section class="view" id="view-gear">
     <div id="gear-list"></div>
     <div class="add-row"><button class="add-btn" id="add-category">+ הוסף קטגוריה</button></div>
+  </section>
+
+  <section class="view" id="view-tasks">
+    <div id="task-list"></div>
+    <div class="add-row"><button class="add-btn" id="add-task-category">+ הוסף קטגוריה</button></div>
   </section>
 
   <div class="save-note" id="save-note">נשמר</div>
@@ -423,6 +429,8 @@ let dismissedSeeds = [];
 let budgetItems = [];
 let gearItems = [];
 let gearCategories = [];
+let taskItems = [];
+let taskCategories = [];
 let saveTimer = null;
 
 function defaultGearCategories(){
@@ -431,6 +439,13 @@ function defaultGearCategories(){
     { id: cryptoId(), title: '💻 ציוד עבודה' },
     { id: cryptoId(), title: '👕 ביגוד' },
     { id: cryptoId(), title: '🎒 שונות' }
+  ];
+}
+
+function defaultTaskCategories(){
+  return [
+    { id: cryptoId(), title: '✈️ משימות לפני הטיסה' },
+    { id: cryptoId(), title: '📍 משימות בלונדון' }
   ];
 }
 
@@ -476,10 +491,23 @@ async function loadAll(){
     gearCategories = defaultGearCategories();
     saveGearCategories();
   }
+  try{
+    const t = await window.storage.get('london-tasks', false);
+    taskItems = t ? JSON.parse(t.value) : [];
+  }catch(e){ taskItems = []; }
+  try{
+    const tc = await window.storage.get('london-task-categories', false);
+    taskCategories = tc ? JSON.parse(tc.value) : defaultTaskCategories();
+  }catch(e){ taskCategories = defaultTaskCategories(); }
+  if(taskCategories.length === 0){
+    taskCategories = defaultTaskCategories();
+    saveTaskCategories();
+  }
   seedExtraStops();
   renderStops();
   renderBudget();
   renderGear();
+  renderTasks();
 }
 
 function seedExtraStops(){
@@ -535,6 +563,12 @@ async function saveGear(){
 }
 async function saveGearCategories(){
   await saveWithRetry('london-gear-categories', JSON.stringify(gearCategories));
+}
+async function saveTasks(){
+  await saveWithRetry('london-tasks', JSON.stringify(taskItems));
+}
+async function saveTaskCategories(){
+  await saveWithRetry('london-task-categories', JSON.stringify(taskCategories));
 }
 
 function renderStops(){
@@ -648,6 +682,38 @@ function renderGear(){
   }).join('');
 }
 
+function renderTasks(){
+  const list = document.getElementById('task-list');
+  if(taskCategories.length === 0){
+    list.innerHTML = '<div class="empty">אין עדיין קטגוריות — הוסף את הראשונה</div>';
+    return;
+  }
+  list.innerHTML = taskCategories.map(cat => {
+    const items = taskItems.filter(g => g.categoryId === cat.id);
+    const doneCount = items.filter(g=>g.checked).length;
+    const pct = items.length ? Math.round(doneCount / items.length * 100) : 0;
+    const rows = items.map(g => `
+      <div class="gear-row ${g.checked ? 'checked':''}" data-id="${g.id}" draggable="true">
+        <span class="drag-handle" title="גרור לשינוי סדר">⠿</span>
+        <input type="checkbox" data-done="${g.id}" ${g.checked?'checked':''}>
+        <input class="gear-name" data-field="name" placeholder="שם המשימה" value="${escapeHtml(g.name)}">
+        <button class="del-stop" data-del-g="${g.id}" title="מחק">×</button>
+      </div>`).join('');
+    return `
+    <div class="gear-cat" data-cat-id="${cat.id}" draggable="true">
+      <div class="gear-cat-head">
+        <span class="drag-handle" title="גרור לשינוי סדר">⠿</span>
+        <input class="gear-cat-title" data-cat-field="title" value="${escapeHtml(cat.title)}" placeholder="שם הקטגוריה">
+        <span class="gear-cat-progress">${doneCount}/${items.length}</span>
+        <button class="del-stop" data-del-cat="${cat.id}" title="מחק קטגוריה">×</button>
+      </div>
+      <div class="gear-progress-track"><div class="gear-progress-bar" style="width:${pct}%"></div></div>
+      <div class="gear-items" data-cat-items="${cat.id}">${rows}</div>
+      <div class="gear-cat-addrow"><button class="gear-add-item" data-add-item="${cat.id}">+ הוסף משימה</button></div>
+    </div>`;
+  }).join('');
+}
+
 // tabs
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
@@ -680,6 +746,15 @@ document.getElementById('add-category').addEventListener('click', ()=>{
   renderGear();
   saveGearCategories();
   const inputs = document.querySelectorAll('.gear-cat-title');
+  if(inputs.length) inputs[inputs.length-1].focus();
+});
+
+// add task category
+document.getElementById('add-task-category').addEventListener('click', ()=>{
+  taskCategories.push({ id: cryptoId(), title: '' });
+  renderTasks();
+  saveTaskCategories();
+  const inputs = document.querySelectorAll('#task-list .gear-cat-title');
   if(inputs.length) inputs[inputs.length-1].focus();
 });
 
@@ -831,6 +906,67 @@ document.getElementById('gear-list').addEventListener('click', (e)=>{
   }
 });
 
+// delegated events - tasks
+document.getElementById('task-list').addEventListener('input', (e)=>{
+  const row = e.target.closest('.gear-row');
+  if(row){
+    const id = row.dataset.id;
+    const field = e.target.dataset.field;
+    const t = taskItems.find(x=>x.id===id);
+    if(t && field){
+      t[field] = e.target.value;
+      clearTimeout(window.__taskSaveT);
+      window.__taskSaveT = setTimeout(saveTasks, 500);
+    }
+    return;
+  }
+  const catEl = e.target.closest('.gear-cat');
+  if(catEl && e.target.dataset.catField){
+    const cat = taskCategories.find(c=>c.id === catEl.dataset.catId);
+    if(cat){
+      cat[e.target.dataset.catField] = e.target.value;
+      clearTimeout(window.__taskCatSaveT);
+      window.__taskCatSaveT = setTimeout(saveTaskCategories, 500);
+    }
+  }
+});
+
+document.getElementById('task-list').addEventListener('change', (e)=>{
+  if(e.target.dataset.done !== undefined){
+    const t = taskItems.find(x=>x.id === e.target.dataset.done);
+    if(t){ t.checked = e.target.checked; renderTasks(); saveTasks(); }
+  }
+});
+
+document.getElementById('task-list').addEventListener('click', (e)=>{
+  if(e.target.dataset.delG){
+    taskItems = taskItems.filter(t=>t.id !== e.target.dataset.delG);
+    renderTasks();
+    saveTasks();
+    return;
+  }
+  if(e.target.dataset.delCat){
+    const catId = e.target.dataset.delCat;
+    taskCategories = taskCategories.filter(c=>c.id !== catId);
+    taskItems = taskItems.filter(t=>t.categoryId !== catId);
+    renderTasks();
+    saveTaskCategories();
+    saveTasks();
+    return;
+  }
+  if(e.target.dataset.addItem){
+    const catId = e.target.dataset.addItem;
+    taskItems.push({ id: cryptoId(), name:'', categoryId: catId, checked:false });
+    renderTasks();
+    saveTasks();
+    const catEl = document.querySelector(`#task-list .gear-cat[data-cat-id="${catId}"]`);
+    if(catEl){
+      const inputs = catEl.querySelectorAll('.gear-name');
+      if(inputs.length) inputs[inputs.length-1].focus();
+    }
+  }
+});
+
 // ---- drag & drop reordering ----
 function reorderArrayFromDOM(containerEl, itemSelector, idAttr, array){
   const ids = Array.from(containerEl.querySelectorAll(itemSelector)).map(el => el.dataset[idAttr]);
@@ -882,7 +1018,7 @@ setupDragReorder(document.getElementById('gear-list'), '.gear-cat', ()=>{
 });
 
 setupDragReorder(document.getElementById('gear-list'), '.gear-row', ()=>{
-  document.querySelectorAll('.gear-items').forEach(container=>{
+  document.getElementById('gear-list').querySelectorAll('.gear-items').forEach(container=>{
     const ids = Array.from(container.querySelectorAll('.gear-row')).map(el => el.dataset.id);
     if(ids.length === 0) return;
     // reposition these items (in their new relative order) within the full gearItems array
@@ -892,6 +1028,23 @@ setupDragReorder(document.getElementById('gear-list'), '.gear-row', ()=>{
     positions.forEach((pos, i)=>{ gearItems[pos] = reordered[i]; });
   });
   saveGear();
+});
+
+setupDragReorder(document.getElementById('task-list'), '.gear-cat', ()=>{
+  reorderArrayFromDOM(document.getElementById('task-list'), '.gear-cat', 'catId', taskCategories);
+  saveTaskCategories();
+});
+
+setupDragReorder(document.getElementById('task-list'), '.gear-row', ()=>{
+  document.getElementById('task-list').querySelectorAll('.gear-items').forEach(container=>{
+    const ids = Array.from(container.querySelectorAll('.gear-row')).map(el => el.dataset.id);
+    if(ids.length === 0) return;
+    const positions = [];
+    taskItems.forEach((t, i)=>{ if(ids.includes(t.id)) positions.push(i); });
+    const reordered = ids.map(id => taskItems.find(t=>t.id===id));
+    positions.forEach((pos, i)=>{ taskItems[pos] = reordered[i]; });
+  });
+  saveTasks();
 });
 
 // theme
