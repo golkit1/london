@@ -212,9 +212,12 @@
     font-family:'JetBrains Mono', monospace; font-size: 26px; font-weight:700;
   }
   .budget-summary .amount.over{ color: var(--red); }
+  .budget-summary .amount-sub{
+    font-family:'JetBrains Mono', monospace; font-size: 13px; color: var(--slate); margin-top:2px;
+  }
   .b-row{
     display:grid;
-    grid-template-columns: 16px 1fr 92px 64px 20px 20px;
+    grid-template-columns: 16px 1fr 88px 86px 20px 20px;
     gap: 6px;
     align-items:center;
     background: var(--navy-2);
@@ -237,6 +240,15 @@
   .b-row input.num{ font-family:'JetBrains Mono', monospace; text-align:center; }
   .b-row input.date{ font-family:'JetBrains Mono', monospace; font-size:12px; text-align:center; padding: 7px 4px; color-scheme: dark; }
   body.light .b-row input.date{ color-scheme: light; }
+  .amt-cell{ display:flex; gap:4px; }
+  .amt-cell input.num{ min-width: 0; padding: 7px 4px; }
+  .cur-toggle{
+    flex-shrink:0; width: 30px;
+    background: var(--field-bg); border:1px solid var(--line);
+    border-radius: 7px; color: var(--paper);
+    font-family:'JetBrains Mono', monospace; font-weight:700; font-size: 12px;
+    cursor: pointer;
+  }
   .b-row .b-notes{
     grid-column: 1 / -1;
     resize: vertical;
@@ -250,7 +262,7 @@
   }
   .notes-toggle.active{ color: var(--gold); }
   .b-head{
-    display:grid; grid-template-columns: 16px 1fr 92px 64px 20px 20px;
+    display:grid; grid-template-columns: 16px 1fr 88px 86px 20px 20px;
     gap:6px; padding: 0 12px; margin-bottom:6px;
     font-size: 11px; color: var(--slate); font-family:'JetBrains Mono',monospace;
   }
@@ -339,7 +351,11 @@
 
   <section class="view" id="view-budget">
     <div class="budget-summary">
-      <div><div class="label">סה"כ הוצאות</div><div class="amount" id="total-actual">£0</div></div>
+      <div>
+        <div class="label">סה"כ הוצאות</div>
+        <div class="amount" id="total-actual">£0</div>
+        <div class="amount-sub" id="total-actual-sub">≈ ₪0</div>
+      </div>
     </div>
     <div class="b-head">
       <span></span><span>פריט</span><span style="text-align:center">תאריך</span><span style="text-align:center">סכום</span><span></span><span></span>
@@ -560,6 +576,8 @@ function escapeHtml(str){
   return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+const GBP_TO_ILS = 4.1;
+
 function renderBudget(){
   const list = document.getElementById('budget-list');
   if(budgetItems.length === 0){
@@ -568,20 +586,34 @@ function renderBudget(){
     list.innerHTML = budgetItems.map(b => {
       const hasNotes = b.notes && b.notes.trim();
       const notesOpen = b.notesOpen !== undefined ? b.notesOpen : !!hasNotes;
+      const currency = b.currency === 'ILS' ? 'ILS' : 'GBP';
+      const symbol = currency === 'ILS' ? '₪' : '£';
       return `
       <div class="b-row" data-id="${b.id}" draggable="true">
         <span class="drag-handle" title="גרור לשינוי סדר">⠿</span>
         <input data-field="desc" placeholder="תיאור" value="${escapeHtml(b.desc)}">
         <input class="date" type="date" data-field="date" value="${b.date ?? ''}">
-        <input class="num" data-field="actual" inputmode="decimal" placeholder="0" value="${b.actual ?? ''}">
+        <div class="amt-cell">
+          <button class="cur-toggle" data-toggle-cur="${b.id}" title="החלף מטבע">${symbol}</button>
+          <input class="num" data-field="actual" inputmode="decimal" placeholder="0" value="${b.actual ?? ''}">
+        </div>
         <button class="notes-toggle ${notesOpen ? 'active':''}" data-toggle-notes="${b.id}" title="הערה">📝</button>
         <button class="del-stop" data-del-b="${b.id}" title="מחק">×</button>
         <textarea class="b-notes ${notesOpen ? '' : 'hidden'}" data-field="notes" placeholder="הערה...">${escapeHtml(b.notes)}</textarea>
       </div>`;
     }).join('');
   }
-  const totalActual = budgetItems.reduce((a,b)=> a + (parseFloat(b.actual)||0), 0);
-  document.getElementById('total-actual').textContent = '£' + totalActual.toLocaleString();
+  updateBudgetTotals();
+}
+
+function updateBudgetTotals(){
+  const totalGBP = budgetItems.reduce((a,b)=>{
+    const amt = parseFloat(b.actual) || 0;
+    return a + (b.currency === 'ILS' ? amt / GBP_TO_ILS : amt);
+  }, 0);
+  const totalILS = totalGBP * GBP_TO_ILS;
+  document.getElementById('total-actual').textContent = '£' + totalGBP.toLocaleString(undefined, {maximumFractionDigits:2});
+  document.getElementById('total-actual-sub').textContent = '≈ ₪' + totalILS.toLocaleString(undefined, {maximumFractionDigits:0});
 }
 
 function renderGear(){
@@ -637,7 +669,7 @@ document.getElementById('add-stop').addEventListener('click', ()=>{
 
 // add budget
 document.getElementById('add-budget').addEventListener('click', ()=>{
-  budgetItems.push({ id: cryptoId(), desc:'', date:'', actual:'', notes:'' });
+  budgetItems.push({ id: cryptoId(), desc:'', date:'', actual:'', notes:'', currency:'GBP' });
   renderBudget();
   saveBudget();
 });
@@ -703,8 +735,7 @@ document.getElementById('budget-list').addEventListener('input', (e)=>{
   const b = budgetItems.find(x=>x.id===id);
   if(!b || !field) return;
   b[field] = e.target.value;
-  const totalActual = budgetItems.reduce((a,x)=> a + (parseFloat(x.actual)||0), 0);
-  document.getElementById('total-actual').textContent = '£' + totalActual.toLocaleString();
+  updateBudgetTotals();
   clearTimeout(window.__budgetSaveT);
   window.__budgetSaveT = setTimeout(saveBudget, 500);
 });
@@ -722,6 +753,15 @@ document.getElementById('budget-list').addEventListener('click', (e)=>{
       const hasNotes = b.notes && b.notes.trim();
       const current = b.notesOpen !== undefined ? b.notesOpen : !!hasNotes;
       b.notesOpen = !current;
+      renderBudget();
+      saveBudget();
+    }
+    return;
+  }
+  if(e.target.dataset.toggleCur){
+    const b = budgetItems.find(x=>x.id === e.target.dataset.toggleCur);
+    if(b){
+      b.currency = b.currency === 'ILS' ? 'GBP' : 'ILS';
       renderBudget();
       saveBudget();
     }
