@@ -303,7 +303,7 @@
   }
   .gear-progress-bar{ height:100%; background: var(--ok); border-radius:2px; transition: width .25s; }
   .gear-row{
-    display:flex; align-items:center; gap:8px;
+    display:flex; align-items:center; gap:8px; flex-wrap: wrap;
     padding: 7px 0;
     border-top: 1px solid var(--line);
   }
@@ -317,6 +317,26 @@
   }
   .gear-name:focus{ outline:none; border-bottom: 1px solid var(--gold); }
   .gear-row.checked .gear-name{ text-decoration: line-through; color: var(--slate); }
+  .task-link-toggle{
+    background:none; border:none; color: var(--slate);
+    font-size: 12px; cursor:pointer; padding: 2px; line-height:1; flex-shrink:0;
+    opacity: 0.5;
+  }
+  .task-link-toggle.active{ color: var(--gold); opacity:1; }
+  .task-link-row{
+    flex-basis: 100%; display:flex; gap:6px; margin-top: 4px;
+  }
+  .task-link-row.hidden{ display:none; }
+  .task-link-row input{
+    flex:1; min-width:0; background: var(--field-bg); border:1px solid var(--line);
+    border-radius: 7px; color: var(--paper); font-family:'JetBrains Mono', monospace;
+    font-size: 11px; padding: 6px 8px;
+  }
+  .task-link-open{
+    flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    width: 26px; background: var(--field-bg); border:1px solid var(--line);
+    border-radius: 7px; color: var(--gold); text-decoration:none; font-size: 12px;
+  }
   .gear-cat-addrow{ display:flex; justify-content:flex-start; margin-top: 8px; }
   .gear-add-item{
     background:none; border:1px dashed var(--line); color: var(--slate);
@@ -728,13 +748,22 @@ function renderTasks(){
     const items = taskItems.filter(g => g.categoryId === cat.id);
     const doneCount = items.filter(g=>g.checked).length;
     const pct = items.length ? Math.round(doneCount / items.length * 100) : 0;
-    const rows = items.map(g => `
+    const rows = items.map(g => {
+      const hasLink = g.link && g.link.trim();
+      const linkOpen = g.linkOpen !== undefined ? g.linkOpen : !!hasLink;
+      return `
       <div class="gear-row ${g.checked ? 'checked':''}" data-id="${g.id}" draggable="true">
         <span class="drag-handle" title="גרור לשינוי סדר">⠿</span>
         <input type="checkbox" data-done="${g.id}" ${g.checked?'checked':''}>
         <input class="gear-name" data-field="name" placeholder="שם המשימה" value="${escapeHtml(g.name)}">
+        <button class="task-link-toggle ${hasLink ? 'active':''}" data-toggle-link="${g.id}" title="קישור">🔗</button>
         <button class="del-stop" data-del-g="${g.id}" title="מחק">×</button>
-      </div>`).join('');
+        <div class="task-link-row ${linkOpen ? '':'hidden'}">
+          <input type="url" data-field="link" placeholder="הדבק קישור..." value="${escapeHtml(g.link)}">
+          ${hasLink ? `<a class="task-link-open" href="${escapeHtml(g.link)}" target="_blank" title="פתח קישור">↗</a>` : ''}
+        </div>
+      </div>`;
+    }).join('');
     return `
     <div class="gear-cat" data-cat-id="${cat.id}" draggable="true">
       <div class="gear-cat-head">
@@ -975,6 +1004,17 @@ document.getElementById('task-list').addEventListener('change', (e)=>{
 });
 
 document.getElementById('task-list').addEventListener('click', (e)=>{
+  if(e.target.dataset.toggleLink){
+    const t = taskItems.find(x=>x.id === e.target.dataset.toggleLink);
+    if(t){
+      const hasLink = t.link && t.link.trim();
+      const current = t.linkOpen !== undefined ? t.linkOpen : !!hasLink;
+      t.linkOpen = !current;
+      renderTasks();
+      saveTasks();
+    }
+    return;
+  }
   if(e.target.dataset.delG){
     taskItems = taskItems.filter(t=>t.id !== e.target.dataset.delG);
     renderTasks();
@@ -992,7 +1032,7 @@ document.getElementById('task-list').addEventListener('click', (e)=>{
   }
   if(e.target.dataset.addItem){
     const catId = e.target.dataset.addItem;
-    taskItems.push({ id: cryptoId(), name:'', categoryId: catId, checked:false });
+    taskItems.push({ id: cryptoId(), name:'', categoryId: catId, checked:false, link:'' });
     renderTasks();
     saveTasks();
     const catEl = document.querySelector(`#task-list .gear-cat[data-cat-id="${catId}"]`);
