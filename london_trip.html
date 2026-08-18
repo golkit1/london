@@ -717,8 +717,7 @@ function renderGear(){
     const doneCount = items.filter(g=>g.checked).length;
     const pct = items.length ? Math.round(doneCount / items.length * 100) : 0;
     const rows = items.map(g => `
-      <div class="gear-row ${g.checked ? 'checked':''}" data-id="${g.id}" draggable="true">
-        <span class="drag-handle" title="גרור לשינוי סדר">⠿</span>
+      <div class="gear-row ${g.checked ? 'checked':''}" data-id="${g.id}">
         <input type="checkbox" data-done="${g.id}" ${g.checked?'checked':''}>
         <input class="gear-name" data-field="name" placeholder="שם הפריט" value="${escapeHtml(g.name)}">
         <button class="del-stop" data-del-g="${g.id}" title="מחק">×</button>
@@ -752,8 +751,7 @@ function renderTasks(){
       const hasLink = g.link && g.link.trim();
       const linkOpen = g.linkOpen !== undefined ? g.linkOpen : !!hasLink;
       return `
-      <div class="gear-row ${g.checked ? 'checked':''}" data-id="${g.id}" draggable="true">
-        <span class="drag-handle" title="גרור לשינוי סדר">⠿</span>
+      <div class="gear-row ${g.checked ? 'checked':''}" data-id="${g.id}">
         <input type="checkbox" data-done="${g.id}" ${g.checked?'checked':''}>
         <input class="gear-name" data-field="name" placeholder="שם המשימה" value="${escapeHtml(g.name)}">
         <button class="task-link-toggle ${hasLink ? 'active':''}" data-toggle-link="${g.id}" title="קישור">🔗</button>
@@ -1093,34 +1091,9 @@ setupDragReorder(document.getElementById('gear-list'), '.gear-cat', ()=>{
   saveGearCategories();
 });
 
-setupDragReorder(document.getElementById('gear-list'), '.gear-row', ()=>{
-  document.getElementById('gear-list').querySelectorAll('.gear-items').forEach(container=>{
-    const ids = Array.from(container.querySelectorAll('.gear-row')).map(el => el.dataset.id);
-    if(ids.length === 0) return;
-    // reposition these items (in their new relative order) within the full gearItems array
-    const positions = [];
-    gearItems.forEach((g, i)=>{ if(ids.includes(g.id)) positions.push(i); });
-    const reordered = ids.map(id => gearItems.find(g=>g.id===id));
-    positions.forEach((pos, i)=>{ gearItems[pos] = reordered[i]; });
-  });
-  saveGear();
-});
-
 setupDragReorder(document.getElementById('task-list'), '.gear-cat', ()=>{
   reorderArrayFromDOM(document.getElementById('task-list'), '.gear-cat', 'catId', taskCategories);
   saveTaskCategories();
-});
-
-setupDragReorder(document.getElementById('task-list'), '.gear-row', ()=>{
-  document.getElementById('task-list').querySelectorAll('.gear-items').forEach(container=>{
-    const ids = Array.from(container.querySelectorAll('.gear-row')).map(el => el.dataset.id);
-    if(ids.length === 0) return;
-    const positions = [];
-    taskItems.forEach((t, i)=>{ if(ids.includes(t.id)) positions.push(i); });
-    const reordered = ids.map(id => taskItems.find(t=>t.id===id));
-    positions.forEach((pos, i)=>{ taskItems[pos] = reordered[i]; });
-  });
-  saveTasks();
 });
 
 // ---- flush pending debounced saves on blur (avoid losing edits on quick refresh) ----
