@@ -208,7 +208,7 @@
   .budget-summary .amount.over{ color: var(--red); }
   .b-row{
     display:grid;
-    grid-template-columns: 1fr 92px 58px 58px 20px;
+    grid-template-columns: 1fr 92px 64px 20px;
     gap: 6px;
     align-items:center;
     background: var(--navy-2);
@@ -217,7 +217,7 @@
     padding: 10px 12px;
     margin-bottom: 8px;
   }
-  .b-row input{
+  .b-row input, .b-row textarea{
     background: var(--field-bg);
     border:1px solid var(--line);
     border-radius:7px;
@@ -230,8 +230,14 @@
   .b-row input.num{ font-family:'JetBrains Mono', monospace; text-align:center; }
   .b-row input.date{ font-family:'JetBrains Mono', monospace; font-size:12px; text-align:center; padding: 7px 4px; color-scheme: dark; }
   body.light .b-row input.date{ color-scheme: light; }
+  .b-row .b-notes{
+    grid-column: 1 / -1;
+    resize: vertical;
+    min-height: 30px;
+    font-size: 12px;
+  }
   .b-head{
-    display:grid; grid-template-columns: 1fr 92px 58px 58px 20px;
+    display:grid; grid-template-columns: 1fr 92px 64px 20px;
     gap:6px; padding: 0 12px; margin-bottom:6px;
     font-size: 11px; color: var(--slate); font-family:'JetBrains Mono',monospace;
   }
@@ -296,11 +302,10 @@
 
   <section class="view" id="view-budget">
     <div class="budget-summary">
-      <div><div class="label">סה"כ בפועל</div><div class="amount" id="total-actual">£0</div></div>
-      <div style="text-align:left"><div class="label">סה"כ מתוכנן</div><div class="amount" id="total-planned">£0</div></div>
+      <div><div class="label">סה"כ הוצאות</div><div class="amount" id="total-actual">£0</div></div>
     </div>
     <div class="b-head">
-      <span>פריט</span><span style="text-align:center">תאריך</span><span style="text-align:center">מתוכנן</span><span style="text-align:center">בפועל</span><span></span>
+      <span>פריט</span><span style="text-align:center">תאריך</span><span style="text-align:center">סכום</span><span></span>
     </div>
     <div id="budget-list"></div>
     <div class="add-row"><button class="add-btn" id="add-budget">+ הוסף הוצאה</button></div>
@@ -499,17 +504,13 @@ function renderBudget(){
       <div class="b-row" data-id="${b.id}">
         <input data-field="desc" placeholder="תיאור" value="${escapeHtml(b.desc)}">
         <input class="date" type="date" data-field="date" value="${b.date ?? ''}">
-        <input class="num" data-field="planned" inputmode="decimal" placeholder="0" value="${b.planned ?? ''}">
         <input class="num" data-field="actual" inputmode="decimal" placeholder="0" value="${b.actual ?? ''}">
         <button class="del-stop" data-del-b="${b.id}" title="מחק">×</button>
+        <textarea class="b-notes" data-field="notes" placeholder="הערה...">${escapeHtml(b.notes)}</textarea>
       </div>`).join('');
   }
-  const totalPlanned = budgetItems.reduce((a,b)=> a + (parseFloat(b.planned)||0), 0);
   const totalActual = budgetItems.reduce((a,b)=> a + (parseFloat(b.actual)||0), 0);
-  document.getElementById('total-planned').textContent = '£' + totalPlanned.toLocaleString();
-  const actualEl = document.getElementById('total-actual');
-  actualEl.textContent = '£' + totalActual.toLocaleString();
-  actualEl.classList.toggle('over', totalActual > totalPlanned && totalPlanned > 0);
+  document.getElementById('total-actual').textContent = '£' + totalActual.toLocaleString();
 }
 
 function renderGear(){
@@ -550,7 +551,7 @@ document.getElementById('add-stop').addEventListener('click', ()=>{
 
 // add budget
 document.getElementById('add-budget').addEventListener('click', ()=>{
-  budgetItems.push({ id: cryptoId(), desc:'', date:'', planned:'', actual:'' });
+  budgetItems.push({ id: cryptoId(), desc:'', date:'', actual:'', notes:'' });
   renderBudget();
   saveBudget();
 });
@@ -611,12 +612,8 @@ document.getElementById('budget-list').addEventListener('input', (e)=>{
   const b = budgetItems.find(x=>x.id===id);
   if(!b || !field) return;
   b[field] = e.target.value;
-  const totalPlanned = budgetItems.reduce((a,x)=> a + (parseFloat(x.planned)||0), 0);
   const totalActual = budgetItems.reduce((a,x)=> a + (parseFloat(x.actual)||0), 0);
-  document.getElementById('total-planned').textContent = '£' + totalPlanned.toLocaleString();
-  const actualEl = document.getElementById('total-actual');
-  actualEl.textContent = '£' + totalActual.toLocaleString();
-  actualEl.classList.toggle('over', totalActual > totalPlanned && totalPlanned > 0);
+  document.getElementById('total-actual').textContent = '£' + totalActual.toLocaleString();
   clearTimeout(window.__budgetSaveT);
   window.__budgetSaveT = setTimeout(saveBudget, 500);
 });
