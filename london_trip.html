@@ -1047,6 +1047,25 @@ setupDragReorder(document.getElementById('task-list'), '.gear-row', ()=>{
   saveTasks();
 });
 
+// ---- flush pending debounced saves on blur (avoid losing edits on quick refresh) ----
+document.getElementById('stops-list').addEventListener('blur', (e)=>{
+  if(e.target.dataset && e.target.dataset.field){ clearTimeout(window.__stopSaveT); saveStops(); }
+}, true);
+
+document.getElementById('budget-list').addEventListener('blur', (e)=>{
+  if(e.target.dataset && e.target.dataset.field){ clearTimeout(window.__budgetSaveT); saveBudget(); }
+}, true);
+
+document.getElementById('gear-list').addEventListener('blur', (e)=>{
+  if(e.target.dataset && e.target.dataset.field){ clearTimeout(window.__gearSaveT); saveGear(); }
+  if(e.target.dataset && e.target.dataset.catField){ clearTimeout(window.__gearCatSaveT); saveGearCategories(); }
+}, true);
+
+document.getElementById('task-list').addEventListener('blur', (e)=>{
+  if(e.target.dataset && e.target.dataset.field){ clearTimeout(window.__taskSaveT); saveTasks(); }
+  if(e.target.dataset && e.target.dataset.catField){ clearTimeout(window.__taskCatSaveT); saveTaskCategories(); }
+}, true);
+
 // theme
 async function loadTheme(){
   let theme = 'dark';
