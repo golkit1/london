@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>לונדון — שבוע עבודה</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Suez+One&family=Heebo:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<style>
+  :root{
+    --navy: #0B1F3A;
+    --navy-2: #122A4E;
+    --paper: #F2EFE9;
+    --red: #E13A2E;
+    --gold: #C9A227;
+    --slate: #7A8AA0;
+    --line: rgba(242,239,233,0.14);
+    --ok: #4C9A6A;
+    --field-bg: rgba(0,0,0,0.18);
+  }
+  body.light{
+    --navy: #F5F1E8;
+    --navy-2: #FFFFFF;
+    --paper: #1C2430;
+    --red: #C22A20;
+    --gold: #97721B;
+    --slate: #6B7385;
+    --line: rgba(28,36,48,0.12);
+    --ok: #2F7A4F;
+    --field-bg: rgba(28,36,48,0.05);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0; padding:0;}
+  body{
+    background: var(--navy);
+    color: var(--paper);
+    font-family: 'Heebo', sans-serif;
+    min-height: 100vh;
+    padding-bottom: 60px;
+    transition: background .2s, color .2s;
+  }
+  body.light .stop::before{ background: var(--navy-2); }
+  .wrap{max-width: 640px; margin: 0 auto; padding: 0 16px;}
+
+  header.top{
+    padding: 28px 16px 18px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, var(--navy-2), var(--navy) 90%);
+  }
+  header.top .wrap{display:flex; flex-direction:column; gap:4px; position:relative;}
+  .theme-toggle{
+    position:absolute; left:0; top:0;
+    background: var(--navy-2); border:1px solid var(--line);
+    color: var(--paper);
+    width: 38px; height:38px; border-radius:50%;
+    font-size: 16px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--gold);
+    text-transform: uppercase;
+  }
+  h1{
+    font-family:'Suez One', serif;
+    font-size: 34px;
+    margin: 2px 0 2px;
+    font-weight: 400;
+  }
+  .subtitle{color: var(--slate); font-size: 14px;}
+
+  nav.tabs{
+    display:flex;
+    position: sticky; top:0; z-index: 10;
+    background: var(--navy);
+    border-bottom: 1px solid var(--line);
+  }
+  nav.tabs .wrap{display:flex; padding:0 16px; gap: 4px;}
+  .tab-btn{
+    flex:1;
+    background: none; border:none;
+    color: var(--slate);
+    font-family:'Heebo', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    padding: 14px 8px 12px;
+    cursor:pointer;
+    border-bottom: 3px solid transparent;
+    transition: color .15s, border-color .15s;
+  }
+  .tab-btn.active{ color: var(--paper); border-bottom-color: var(--red); }
+
+  section.view{ display:none; padding: 22px 0 10px; }
+  section.view.active{ display:block; }
+
+  /* ---- Places (station line) ---- */
+  .line-track{ position:relative; padding-inline-start: 26px; }
+  .line-track::before{
+    content:"";
+    position:absolute;
+    inset-inline-start: 8px;
+    top: 6px; bottom: 6px;
+    width: 3px;
+    background: linear-gradient(var(--red), var(--gold));
+    border-radius: 3px;
+  }
+  .stop{
+    position: relative;
+    margin-bottom: 16px;
+    background: var(--navy-2);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .stop::before{
+    content:"";
+    position:absolute;
+    inset-inline-start: -26px;
+    top: 20px;
+    width: 13px; height:13px;
+    border-radius: 50%;
+    background: var(--paper);
+    border: 3px solid var(--red);
+  }
+  .stop.done::before{ border-color: var(--ok); }
+  .stop.collapsed{ padding-bottom: 14px; }
+  .stop.collapsed .stop-body{ display:none; }
+  .stop-head{ display:flex; align-items:flex-start; justify-content: space-between; gap:8px; }
+  .collapse-toggle{
+    background:none; border:none; color: var(--slate);
+    font-size: 14px; cursor:pointer; padding: 4px 4px; line-height:1;
+    flex-shrink:0;
+  }
+  .stop-name{
+    font-family:'Heebo', sans-serif;
+    font-weight: 800;
+    font-size: 17px;
+    background: transparent; border:none; color: var(--paper);
+    width: 100%;
+    padding: 2px 0;
+  }
+  .stop-name:focus{ outline: none; border-bottom: 1px solid var(--gold); }
+  .stop-addr{
+    font-size: 13px; color: var(--slate);
+    background: transparent; border:none; width:100%;
+    padding: 2px 0 8px;
+    font-family: 'Heebo', sans-serif;
+  }
+  .stop-addr:focus{ outline:none; }
+  .stop-notes{
+    width:100%;
+    background: var(--field-bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--paper);
+    font-family: 'Heebo', sans-serif;
+    font-size: 13px;
+    padding: 8px 10px;
+    resize: vertical;
+    min-height: 36px;
+  }
+  .stop-actions{ display:flex; gap:8px; margin-top:10px; flex-wrap: wrap; align-items:center;}
+  .nav-btn{
+    display:flex; align-items:center; gap:5px;
+    font-size: 12px; font-weight:700;
+    padding: 7px 12px;
+    border-radius: 999px;
+    text-decoration:none;
+    border:1px solid var(--line);
+    color: var(--paper);
+  }
+  .nav-btn.gmaps{ background: rgba(76,154,106,0.14); border-color: var(--ok);}
+  .done-toggle{
+    margin-inline-start:auto;
+    font-size: 11px; color: var(--slate);
+    display:flex; align-items:center; gap:5px; cursor:pointer;
+    user-select:none;
+  }
+  .del-stop{
+    background:none; border:none; color: var(--slate);
+    font-size: 18px; cursor:pointer; padding: 0 2px; line-height:1;
+  }
+  .add-row{
+    display:flex; justify-content:center; margin-top: 6px;
+  }
+  .add-btn{
+    background: var(--red); color: var(--paper);
+    border:none; border-radius: 999px;
+    font-family:'Heebo',sans-serif; font-weight:700; font-size:14px;
+    padding: 11px 22px; cursor:pointer;
+    box-shadow: 0 4px 14px rgba(225,58,46,0.35);
+  }
+
+  /* ---- Budget ---- */
+  .budget-summary{
+    display:flex; justify-content:space-between; align-items:baseline;
+    background: var(--navy-2); border:1px solid var(--line);
+    border-radius: 12px; padding: 16px 18px; margin-bottom: 16px;
+  }
+  .budget-summary .label{ font-size:13px; color:var(--slate); }
+  .budget-summary .amount{
+    font-family:'JetBrains Mono', monospace; font-size: 26px; font-weight:700;
+  }
+  .budget-summary .amount.over{ color: var(--red); }
+  .b-row{
+    display:grid;
+    grid-template-columns: 1fr 92px 58px 58px 20px;
+    gap: 6px;
+    align-items:center;
+    background: var(--navy-2);
+    border:1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .b-row input{
+    background: var(--field-bg);
+    border:1px solid var(--line);
+    border-radius:7px;
+    color: var(--paper);
+    font-family:'Heebo',sans-serif;
+    font-size: 13px;
+    padding: 7px 8px;
+    width: 100%;
+  }
+  .b-row input.num{ font-family:'JetBrains Mono', monospace; text-align:center; }
+  .b-row input.date{ font-family:'JetBrains Mono', monospace; font-size:12px; text-align:center; padding: 7px 4px; color-scheme: dark; }
+  body.light .b-row input.date{ color-scheme: light; }
+  .b-head{
+    display:grid; grid-template-columns: 1fr 92px 58px 58px 20px;
+    gap:6px; padding: 0 12px; margin-bottom:6px;
+    font-size: 11px; color: var(--slate); font-family:'JetBrains Mono',monospace;
+  }
+
+  .empty{ text-align:center; color: var(--slate); font-size:14px; padding: 30px 10px; }
+
+  /* ---- Gear ---- */
+  .gear-row{
+    display:flex; align-items:flex-start; gap:10px;
+    background: var(--navy-2); border:1px solid var(--line);
+    border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
+  }
+  .gear-row input[type="checkbox"]{ margin-top: 9px; width:16px; height:16px; flex-shrink:0; }
+  .gear-body{ flex:1; min-width:0; }
+  .gear-name{
+    width:100%; background: transparent; border:none; color: var(--paper);
+    font-family:'Heebo', sans-serif; font-weight:700; font-size: 15px;
+    padding: 4px 0;
+  }
+  .gear-name:focus{ outline:none; border-bottom: 1px solid var(--gold); }
+  .gear-row.checked .gear-name{ text-decoration: line-through; color: var(--slate); }
+  .gear-notes{
+    width:100%; background: var(--field-bg); border:1px solid var(--line);
+    border-radius: 8px; color: var(--paper); font-family:'Heebo', sans-serif;
+    font-size: 12px; padding: 6px 9px; resize: vertical; min-height: 30px;
+    margin-top: 4px;
+  }
+  .save-note{
+    text-align:center; font-size: 11px; color: var(--slate);
+    font-family:'JetBrains Mono', monospace; padding-top: 10px;
+    opacity: 0; transition: opacity .3s;
+  }
+  .save-note.show{ opacity: 1; }
+  .save-note.error{ color: var(--red); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <button class="theme-toggle" id="theme-toggle" title="החלף מצב תצוגה">🌙</button>
+    <div class="eyebrow">WORK TRIP</div>
+    <h1>לונדון</h1>
+    <div class="subtitle">שבוע עבודה — מקומות, ניווט, תקציב וציוד</div>
+  </div>
+</header>
+
+<nav class="tabs">
+  <div class="wrap">
+    <button class="tab-btn active" data-view="places">מקומות</button>
+    <button class="tab-btn" data-view="budget">תקציב</button>
+    <button class="tab-btn" data-view="gear">ציוד</button>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <section class="view active" id="view-places">
+    <div class="line-track" id="stops-list"></div>
+    <div class="add-row"><button class="add-btn" id="add-stop">+ הוסף מקום</button></div>
+  </section>
+
+  <section class="view" id="view-budget">
+    <div class="budget-summary">
+      <div><div class="label">סה"כ בפועל</div><div class="amount" id="total-actual">£0</div></div>
+      <div style="text-align:left"><div class="label">סה"כ מתוכנן</div><div class="amount" id="total-planned">£0</div></div>
+    </div>
+    <div class="b-head">
+      <span>פריט</span><span style="text-align:center">תאריך</span><span style="text-align:center">מתוכנן</span><span style="text-align:center">בפועל</span><span></span>
+    </div>
+    <div id="budget-list"></div>
+    <div class="add-row"><button class="add-btn" id="add-budget">+ הוסף הוצאה</button></div>
+  </section>
+
+  <section class="view" id="view-gear">
+    <div id="gear-list"></div>
+    <div class="add-row"><button class="add-btn" id="add-gear">+ הוסף פריט ציוד</button></div>
+  </section>
+
+  <div class="save-note" id="save-note">נשמר</div>
+</div>
+
+<script>
+// ==================================================
+// STORAGE: Firebase Realtime Database (project greece-af497, path "london/")
+// Falls back to localStorage if Firebase init/connection fails, so the
+// page still works offline or if something is misconfigured.
+// ==================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyC1vzOodP-jWxu7mWYa5_LvUgZDFLzBJig",
+  authDomain: "greece-af497.firebaseapp.com",
+  databaseURL: "https://greece-af497-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "greece-af497",
+  storageBucket: "greece-af497.firebasestorage.app",
+  messagingSenderId: "2459759414",
+  appId: "1:2459759414:web:aa52d17d338c74b8c13997"
+};
+
+let fbDb = null;
+try{
+  firebase.initializeApp(firebaseConfig);
+  fbDb = firebase.database();
+}catch(e){ console.warn('Firebase init failed, falling back to local-only storage', e); }
+
+window.storage = {
+  async get(key){
+    if(fbDb){
+      try{
+        const snap = await fbDb.ref('london/' + key).once('value');
+        const v = snap.val();
+        if(v !== null && v !== undefined){
+          localStorage.setItem('london-cache-' + key, v);
+          return { key, value: v };
+        }
+      }catch(e){ console.warn('Firebase read failed for', key, e); }
+    }
+    const local = localStorage.getItem('london-cache-' + key);
+    return local === null ? null : { key, value: local };
+  },
+  async set(key, value){
+    localStorage.setItem('london-cache-' + key, value);
+    if(fbDb){
+      await fbDb.ref('london/' + key).set(value);
+    }
+    return { key, value };
+  }
+};
+
+let stops = [];
+let budgetItems = [];
+let gearItems = [];
+let saveTimer = null;
+
+function flashSave(){
+  const el = document.getElementById('save-note');
+  el.classList.remove('error');
+  el.textContent = 'נשמר';
+  el.classList.add('show');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=> el.classList.remove('show'), 900);
+}
+
+function flashError(){
+  const el = document.getElementById('save-note');
+  el.textContent = 'שגיאה בשמירה — נסה שוב';
+  el.classList.add('show', 'error');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=> el.classList.remove('show'), 2500);
+}
+
+async function loadAll(){
+  try{
+    const s = await window.storage.get('london-stops', false);
+    stops = s ? JSON.parse(s.value) : defaultStops();
+  }catch(e){ stops = defaultStops(); }
+  try{
+    const b = await window.storage.get('london-budget', false);
+    budgetItems = b ? JSON.parse(b.value) : [];
+  }catch(e){ budgetItems = []; }
+  try{
+    const g = await window.storage.get('london-gear', false);
+    gearItems = g ? JSON.parse(g.value) : [];
+  }catch(e){ gearItems = []; }
+  seedExtraStops();
+  renderStops();
+  renderBudget();
+  renderGear();
+}
+
+function seedExtraStops(){
+  const seeds = [
+    {
+      seedId: 'stansted-euston',
+      name: 'שדה תעופה סטנסטד ← תחנת Euston',
+      link: 'https://www.google.com/maps/dir/?api=1&origin=Stansted+Airport&destination=Euston+Station+London&travelmode=transit',
+      notes: 'Stansted Express עד Tottenham Hale (~46 דק׳ כולל חילוף), ואז Victoria line עד Euston. כרטיס: אפשר להזמין מראש באתר stanstedexpress.com (מ-£9.90) או לקנות במקום בתחנה / קונטקטלס בכניסה לרציף (~£21.90).'
+    }
+  ];
+  let changed = false;
+  seeds.forEach(seed=>{
+    if(!stops.some(s=>s.seedId === seed.seedId)){
+      stops.push({ id: cryptoId(), seedId: seed.seedId, name: seed.name, link: seed.link, notes: seed.notes, done:false });
+      changed = true;
+    }
+  });
+  if(changed) saveStops();
+}
+
+function defaultStops(){
+  return [
+    { id: cryptoId(), name: 'משרד / קמפוס', link: '', notes: '', done:false }
+  ];
+}
+
+function cryptoId(){ return Math.random().toString(36).slice(2,10); }
+
+async function saveWithRetry(key, value){
+  for(let attempt=0; attempt<2; attempt++){
+    try{
+      await window.storage.set(key, value, false);
+      flashSave();
+      return;
+    }catch(e){
+      console.error(`save ${key} failed (attempt ${attempt+1})`, e);
+      if(attempt === 0) await new Promise(r=>setTimeout(r, 800));
+    }
+  }
+  flashError();
+}
+
+async function saveStops(){
+  await saveWithRetry('london-stops', JSON.stringify(stops));
+}
+async function saveBudget(){
+  await saveWithRetry('london-budget', JSON.stringify(budgetItems));
+}
+async function saveGear(){
+  await saveWithRetry('london-gear', JSON.stringify(gearItems));
+}
+
+function renderStops(){
+  const list = document.getElementById('stops-list');
+  if(stops.length === 0){
+    list.innerHTML = '<div class="empty">אין עדיין מקומות — הוסף את הראשון</div>';
+    return;
+  }
+  list.innerHTML = stops.map(s => {
+    const gmapsHref = buildMapsHref(s);
+    return `
+    <div class="stop ${s.done ? 'done':''} ${s.collapsed ? 'collapsed':''}" data-id="${s.id}">
+      <div class="stop-head">
+        <button class="collapse-toggle" data-collapse="${s.id}" title="מזער/הרחב">${s.collapsed ? '▾' : '▸'}</button>
+        <input class="stop-name" data-field="name" placeholder="שם המקום" value="${escapeHtml(s.name)}">
+        <button class="del-stop" data-del="${s.id}" title="מחק">×</button>
+      </div>
+      <div class="stop-body">
+        <input class="stop-addr" data-field="link" placeholder="קישור Google Maps או כתובת (למשל GVG7+V9Q London)" value="${escapeHtml(s.link)}">
+        <textarea class="stop-notes" data-field="notes" placeholder="הערות...">${escapeHtml(s.notes)}</textarea>
+        <div class="stop-actions">
+          <a class="nav-btn gmaps" target="_blank" href="${gmapsHref}">פתח ב-Google Maps</a>
+          <label class="done-toggle"><input type="checkbox" data-done="${s.id}" ${s.done?'checked':''}> בוצע</label>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function buildMapsHref(s){
+  const val = (s.link || '').trim();
+  if(/^https?:\/\//i.test(val)) return val;
+  const q = encodeURIComponent(val || s.name || '');
+  return `https://www.google.com/maps/search/?api=1&query=${q}`;
+}
+
+function escapeHtml(str){
+  return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderBudget(){
+  const list = document.getElementById('budget-list');
+  if(budgetItems.length === 0){
+    list.innerHTML = '<div class="empty">אין עדיין הוצאות — הוסף את הראשונה</div>';
+  } else {
+    list.innerHTML = budgetItems.map(b => `
+      <div class="b-row" data-id="${b.id}">
+        <input data-field="desc" placeholder="תיאור" value="${escapeHtml(b.desc)}">
+        <input class="date" type="date" data-field="date" value="${b.date ?? ''}">
+        <input class="num" data-field="planned" inputmode="decimal" placeholder="0" value="${b.planned ?? ''}">
+        <input class="num" data-field="actual" inputmode="decimal" placeholder="0" value="${b.actual ?? ''}">
+        <button class="del-stop" data-del-b="${b.id}" title="מחק">×</button>
+      </div>`).join('');
+  }
+  const totalPlanned = budgetItems.reduce((a,b)=> a + (parseFloat(b.planned)||0), 0);
+  const totalActual = budgetItems.reduce((a,b)=> a + (parseFloat(b.actual)||0), 0);
+  document.getElementById('total-planned').textContent = '£' + totalPlanned.toLocaleString();
+  const actualEl = document.getElementById('total-actual');
+  actualEl.textContent = '£' + totalActual.toLocaleString();
+  actualEl.classList.toggle('over', totalActual > totalPlanned && totalPlanned > 0);
+}
+
+function renderGear(){
+  const list = document.getElementById('gear-list');
+  if(gearItems.length === 0){
+    list.innerHTML = '<div class="empty">אין עדיין פריטי ציוד — הוסף את הראשון</div>';
+    return;
+  }
+  list.innerHTML = gearItems.map(g => `
+    <div class="gear-row ${g.checked ? 'checked':''}" data-id="${g.id}">
+      <input type="checkbox" data-done="${g.id}" ${g.checked?'checked':''}>
+      <div class="gear-body">
+        <input class="gear-name" data-field="name" placeholder="שם הפריט" value="${escapeHtml(g.name)}">
+        <textarea class="gear-notes" data-field="notes" placeholder="הערות...">${escapeHtml(g.notes)}</textarea>
+      </div>
+      <button class="del-stop" data-del-g="${g.id}" title="מחק">×</button>
+    </div>`).join('');
+}
+
+// tabs
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-' + btn.dataset.view).classList.add('active');
+  });
+});
+
+// add stop
+document.getElementById('add-stop').addEventListener('click', ()=>{
+  stops.push({ id: cryptoId(), name:'', address:'', notes:'', done:false });
+  renderStops();
+  saveStops();
+  const inputs = document.querySelectorAll('.stop-name');
+  if(inputs.length) inputs[inputs.length-1].focus();
+});
+
+// add budget
+document.getElementById('add-budget').addEventListener('click', ()=>{
+  budgetItems.push({ id: cryptoId(), desc:'', date:'', planned:'', actual:'' });
+  renderBudget();
+  saveBudget();
+});
+
+// add gear
+document.getElementById('add-gear').addEventListener('click', ()=>{
+  gearItems.push({ id: cryptoId(), name:'', notes:'', checked:false });
+  renderGear();
+  saveGear();
+  const inputs = document.querySelectorAll('.gear-name');
+  if(inputs.length) inputs[inputs.length-1].focus();
+});
+
+// delegated events - stops
+document.getElementById('stops-list').addEventListener('input', (e)=>{
+  const stopEl = e.target.closest('.stop');
+  if(!stopEl) return;
+  const id = stopEl.dataset.id;
+  const field = e.target.dataset.field;
+  if(!field) return;
+  const s = stops.find(x=>x.id===id);
+  if(!s) return;
+  s[field] = e.target.value;
+  if(field === 'name' || field === 'link'){
+    // update nav link live without full re-render (avoid losing focus)
+    stopEl.querySelector('.gmaps').href = buildMapsHref(s);
+  }
+  clearTimeout(window.__stopSaveT);
+  window.__stopSaveT = setTimeout(saveStops, 500);
+});
+
+document.getElementById('stops-list').addEventListener('change', (e)=>{
+  if(e.target.dataset.done !== undefined){
+    const s = stops.find(x=>x.id === e.target.dataset.done);
+    if(s){ s.done = e.target.checked; renderStops(); saveStops(); }
+  }
+});
+
+document.getElementById('stops-list').addEventListener('click', (e)=>{
+  if(e.target.dataset.del){
+    stops = stops.filter(s=>s.id !== e.target.dataset.del);
+    renderStops();
+    saveStops();
+    return;
+  }
+  if(e.target.dataset.collapse){
+    const s = stops.find(x=>x.id === e.target.dataset.collapse);
+    if(s){ s.collapsed = !s.collapsed; renderStops(); saveStops(); }
+  }
+});
+
+// delegated events - budget
+document.getElementById('budget-list').addEventListener('input', (e)=>{
+  const row = e.target.closest('.b-row');
+  if(!row) return;
+  const id = row.dataset.id;
+  const field = e.target.dataset.field;
+  const b = budgetItems.find(x=>x.id===id);
+  if(!b || !field) return;
+  b[field] = e.target.value;
+  const totalPlanned = budgetItems.reduce((a,x)=> a + (parseFloat(x.planned)||0), 0);
+  const totalActual = budgetItems.reduce((a,x)=> a + (parseFloat(x.actual)||0), 0);
+  document.getElementById('total-planned').textContent = '£' + totalPlanned.toLocaleString();
+  const actualEl = document.getElementById('total-actual');
+  actualEl.textContent = '£' + totalActual.toLocaleString();
+  actualEl.classList.toggle('over', totalActual > totalPlanned && totalPlanned > 0);
+  clearTimeout(window.__budgetSaveT);
+  window.__budgetSaveT = setTimeout(saveBudget, 500);
+});
+
+document.getElementById('budget-list').addEventListener('click', (e)=>{
+  if(e.target.dataset.delB){
+    budgetItems = budgetItems.filter(b=>b.id !== e.target.dataset.delB);
+    renderBudget();
+    saveBudget();
+  }
+});
+
+// delegated events - gear
+document.getElementById('gear-list').addEventListener('input', (e)=>{
+  const row = e.target.closest('.gear-row');
+  if(!row) return;
+  const id = row.dataset.id;
+  const field = e.target.dataset.field;
+  const g = gearItems.find(x=>x.id===id);
+  if(!g || !field) return;
+  g[field] = e.target.value;
+  clearTimeout(window.__gearSaveT);
+  window.__gearSaveT = setTimeout(saveGear, 500);
+});
+
+document.getElementById('gear-list').addEventListener('change', (e)=>{
+  if(e.target.dataset.done !== undefined){
+    const g = gearItems.find(x=>x.id === e.target.dataset.done);
+    if(g){ g.checked = e.target.checked; renderGear(); saveGear(); }
+  }
+});
+
+document.getElementById('gear-list').addEventListener('click', (e)=>{
+  if(e.target.dataset.delG){
+    gearItems = gearItems.filter(g=>g.id !== e.target.dataset.delG);
+    renderGear();
+    saveGear();
+  }
+});
+
+// theme
+async function loadTheme(){
+  let theme = 'dark';
+  try{
+    const t = await window.storage.get('london-theme', false);
+    if(t) theme = t.value;
+  }catch(e){}
+  applyTheme(theme);
+}
+function applyTheme(theme){
+  document.body.classList.toggle('light', theme === 'light');
+  document.getElementById('theme-toggle').textContent = theme === 'light' ? '☀️' : '🌙';
+}
+document.getElementById('theme-toggle').addEventListener('click', async ()=>{
+  const isLight = document.body.classList.contains('light');
+  const next = isLight ? 'dark' : 'light';
+  applyTheme(next);
+  try{ await window.storage.set('london-theme', next, false); }catch(e){}
+});
+
+loadTheme();
+loadAll();
+</script>
+</body>
+</html>
