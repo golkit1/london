@@ -214,7 +214,7 @@
   .budget-summary .amount.over{ color: var(--red); }
   .b-row{
     display:grid;
-    grid-template-columns: 16px 1fr 92px 64px 20px;
+    grid-template-columns: 16px 1fr 92px 64px 20px 20px;
     gap: 6px;
     align-items:center;
     background: var(--navy-2);
@@ -243,8 +243,14 @@
     min-height: 30px;
     font-size: 12px;
   }
+  .b-row .b-notes.hidden{ display:none; }
+  .notes-toggle{
+    background:none; border:none; color: var(--slate);
+    font-size: 14px; cursor:pointer; padding: 2px; line-height:1;
+  }
+  .notes-toggle.active{ color: var(--gold); }
   .b-head{
-    display:grid; grid-template-columns: 16px 1fr 92px 64px 20px;
+    display:grid; grid-template-columns: 16px 1fr 92px 64px 20px 20px;
     gap:6px; padding: 0 12px; margin-bottom:6px;
     font-size: 11px; color: var(--slate); font-family:'JetBrains Mono',monospace;
   }
@@ -336,7 +342,7 @@
       <div><div class="label">סה"כ הוצאות</div><div class="amount" id="total-actual">£0</div></div>
     </div>
     <div class="b-head">
-      <span></span><span>פריט</span><span style="text-align:center">תאריך</span><span style="text-align:center">סכום</span><span></span>
+      <span></span><span>פריט</span><span style="text-align:center">תאריך</span><span style="text-align:center">סכום</span><span></span><span></span>
     </div>
     <div id="budget-list"></div>
     <div class="add-row"><button class="add-btn" id="add-budget">+ הוסף הוצאה</button></div>
@@ -559,15 +565,20 @@ function renderBudget(){
   if(budgetItems.length === 0){
     list.innerHTML = '<div class="empty">אין עדיין הוצאות — הוסף את הראשונה</div>';
   } else {
-    list.innerHTML = budgetItems.map(b => `
+    list.innerHTML = budgetItems.map(b => {
+      const hasNotes = b.notes && b.notes.trim();
+      const notesOpen = b.notesOpen !== undefined ? b.notesOpen : !!hasNotes;
+      return `
       <div class="b-row" data-id="${b.id}" draggable="true">
         <span class="drag-handle" title="גרור לשינוי סדר">⠿</span>
         <input data-field="desc" placeholder="תיאור" value="${escapeHtml(b.desc)}">
         <input class="date" type="date" data-field="date" value="${b.date ?? ''}">
         <input class="num" data-field="actual" inputmode="decimal" placeholder="0" value="${b.actual ?? ''}">
+        <button class="notes-toggle ${notesOpen ? 'active':''}" data-toggle-notes="${b.id}" title="הערה">📝</button>
         <button class="del-stop" data-del-b="${b.id}" title="מחק">×</button>
-        <textarea class="b-notes" data-field="notes" placeholder="הערה...">${escapeHtml(b.notes)}</textarea>
-      </div>`).join('');
+        <textarea class="b-notes ${notesOpen ? '' : 'hidden'}" data-field="notes" placeholder="הערה...">${escapeHtml(b.notes)}</textarea>
+      </div>`;
+    }).join('');
   }
   const totalActual = budgetItems.reduce((a,b)=> a + (parseFloat(b.actual)||0), 0);
   document.getElementById('total-actual').textContent = '£' + totalActual.toLocaleString();
@@ -703,6 +714,17 @@ document.getElementById('budget-list').addEventListener('click', (e)=>{
     budgetItems = budgetItems.filter(b=>b.id !== e.target.dataset.delB);
     renderBudget();
     saveBudget();
+    return;
+  }
+  if(e.target.dataset.toggleNotes){
+    const b = budgetItems.find(x=>x.id === e.target.dataset.toggleNotes);
+    if(b){
+      const hasNotes = b.notes && b.notes.trim();
+      const current = b.notesOpen !== undefined ? b.notesOpen : !!hasNotes;
+      b.notesOpen = !current;
+      renderBudget();
+      saveBudget();
+    }
   }
 });
 
