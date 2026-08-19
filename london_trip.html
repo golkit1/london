@@ -325,24 +325,6 @@
     font-size: 11px; color: var(--slate); text-align:center; padding: 4px 10px 14px;
   }
 
-  /* ---- Documents ---- */
-  .doc-card{
-    background: var(--navy-2); border:1px solid var(--line);
-    border-radius: 12px; padding: 14px 16px; margin-bottom: 12px;
-  }
-  .doc-head{ display:flex; align-items:center; gap:8px; margin-bottom: 8px; }
-  .doc-name{
-    flex:1; min-width:0; background: transparent; border:none; color: var(--paper);
-    font-family:'Heebo', sans-serif; font-weight:800; font-size: 15px; padding: 2px 0;
-  }
-  .doc-name:focus{ outline:none; border-bottom: 1px solid var(--gold); }
-  .doc-link-row{ display:flex; align-items:center; gap:6px; margin-bottom: 8px; }
-  .doc-notes{
-    width:100%; background: var(--field-bg); border:1px solid var(--line);
-    border-radius: 8px; color: var(--paper); font-family:'Heebo', sans-serif;
-    font-size: 12px; padding: 7px 9px; resize: vertical; min-height: 32px;
-  }
-
   /* ---- Gear ---- */
   .gear-cat{
     background: var(--navy-2); border:1px solid var(--line);
@@ -945,18 +927,22 @@ function renderDocs(){
     list.innerHTML = '<div class="empty">אין עדיין מסמכים — הוסף קישור למסמך (Google Drive וכו׳)</div>';
     return;
   }
-  list.innerHTML = docs.map(d => `
-    <div class="doc-card" data-id="${d.id}">
-      <div class="doc-head">
-        <input class="doc-name" data-field="name" placeholder="שם המסמך" value="${escapeHtml(d.name)}">
-        <button class="del-stop" data-del-doc="${d.id}" title="מחק">×</button>
+  const rows = docs.map(d => {
+    const hasLink = d.link && d.link.trim();
+    const linkOpen = d.linkOpen !== undefined ? d.linkOpen : !!hasLink;
+    return `
+    <div class="gear-row ${d.checked ? 'checked':''}" data-id="${d.id}">
+      <input type="checkbox" data-done-doc="${d.id}" ${d.checked?'checked':''}>
+      <input class="gear-name" data-field="name" placeholder="שם המסמך" value="${escapeHtml(d.name)}">
+      <button class="task-link-toggle ${hasLink ? 'active':''}" data-toggle-doc-link="${d.id}" title="קישור">🔗</button>
+      <button class="del-stop" data-del-doc="${d.id}" title="מחק">×</button>
+      <div class="task-link-row ${linkOpen ? '':'hidden'}">
+        <input type="url" data-field="link" placeholder="הדבק קישור..." value="${escapeHtml(d.link)}">
+        ${hasLink ? `<a class="task-link-open" href="${escapeHtml(d.link)}" target="_blank" title="פתח קישור">↗</a>` : ''}
       </div>
-      <div class="doc-link-row">
-        <input class="stop-addr" data-field="link" placeholder="קישור (Google Drive וכו׳)" value="${escapeHtml(d.link)}">
-        <a class="nav-btn gmaps" target="_blank" href="${escapeHtml(d.link || '#')}">פתח</a>
-      </div>
-      <textarea class="doc-notes" data-field="notes" placeholder="הערות...">${escapeHtml(d.notes)}</textarea>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+  list.innerHTML = `<div class="gear-cat"><div class="gear-items">${rows}</div></div>`;
 }
 
 // tabs
@@ -1363,27 +1349,31 @@ document.getElementById('flights-list').addEventListener('blur', (e)=>{
 
 // add doc
 document.getElementById('add-doc').addEventListener('click', ()=>{
-  docs.push({ id: cryptoId(), name:'', link:'', notes:'' });
+  docs.push({ id: cryptoId(), name:'', link:'', checked:false });
   renderDocs();
   saveDocs();
-  const inputs = document.querySelectorAll('.doc-name');
+  const inputs = document.querySelectorAll('#docs-list .gear-name');
   if(inputs.length) inputs[inputs.length-1].focus();
 });
 
 // delegated events - docs
 document.getElementById('docs-list').addEventListener('input', (e)=>{
-  const card = e.target.closest('.doc-card');
-  if(!card) return;
+  const row = e.target.closest('.gear-row');
+  if(!row) return;
   const field = e.target.dataset.field;
   if(!field) return;
-  const d = docs.find(x=>x.id === card.dataset.id);
+  const d = docs.find(x=>x.id === row.dataset.id);
   if(!d) return;
   d[field] = e.target.value;
-  if(field === 'link'){
-    card.querySelector('.doc-link-row .gmaps').href = e.target.value || '#';
-  }
   clearTimeout(window.__docsSaveT);
   window.__docsSaveT = setTimeout(saveDocs, 500);
+});
+
+document.getElementById('docs-list').addEventListener('change', (e)=>{
+  if(e.target.dataset.doneDoc){
+    const d = docs.find(x=>x.id === e.target.dataset.doneDoc);
+    if(d){ d.checked = e.target.checked; renderDocs(); saveDocs(); }
+  }
 });
 
 document.getElementById('docs-list').addEventListener('click', (e)=>{
@@ -1391,6 +1381,17 @@ document.getElementById('docs-list').addEventListener('click', (e)=>{
     docs = docs.filter(d=>d.id !== e.target.dataset.delDoc);
     renderDocs();
     saveDocs();
+    return;
+  }
+  if(e.target.dataset.toggleDocLink){
+    const d = docs.find(x=>x.id === e.target.dataset.toggleDocLink);
+    if(d){
+      const hasLink = d.link && d.link.trim();
+      const current = d.linkOpen !== undefined ? d.linkOpen : !!hasLink;
+      d.linkOpen = !current;
+      renderDocs();
+      saveDocs();
+    }
   }
 });
 
