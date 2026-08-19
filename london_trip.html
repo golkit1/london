@@ -161,11 +161,19 @@
   .stop-name:focus{ outline: none; border-bottom: 1px solid var(--gold); }
   .stop-addr{
     font-size: 13px; color: var(--slate);
-    background: transparent; border:none; width:100%;
-    padding: 2px 0 8px;
+    background: var(--field-bg); border:1px solid var(--line); border-radius: 7px;
+    flex:1; min-width:0;
+    padding: 6px 8px;
     font-family: 'Heebo', sans-serif;
   }
-  .stop-addr:focus{ outline:none; }
+  .stop-addr:focus{ outline:none; border-color: var(--gold); }
+  .stop-links{ margin-bottom: 6px; }
+  .stop-link-row{ display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+  .stop-add-link{
+    background:none; border:1px dashed var(--line); color: var(--slate);
+    font-family:'Heebo', sans-serif; font-size: 12px; font-weight:700;
+    padding: 6px 12px; border-radius: 999px; cursor:pointer; margin-bottom: 8px;
+  }
   .stop-notes{
     width:100%;
     background: var(--field-bg);
@@ -278,6 +286,45 @@
 
   .empty{ text-align:center; color: var(--slate); font-size:14px; padding: 30px 10px; }
 
+  /* ---- Flights ---- */
+  .flight-card{
+    background: var(--navy-2); border:1px solid var(--line);
+    border-radius: 14px; padding: 16px 18px; margin-bottom: 16px;
+    position: relative; overflow:hidden;
+  }
+  .flight-card::before{
+    content:""; position:absolute; inset-inline-start:0; top:0; bottom:0; width:4px;
+    background: var(--red);
+  }
+  .flight-card.return::before{ background: var(--gold); }
+  .flight-label{
+    font-family:'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 1px;
+    color: var(--slate); text-transform: uppercase; margin-bottom: 4px;
+  }
+  .flight-route{
+    font-family:'Suez One', serif; font-size: 20px; margin-bottom: 10px;
+  }
+  .flight-grid{
+    display:grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-bottom: 10px;
+  }
+  .flight-field{ display:flex; flex-direction:column; gap:3px; }
+  .flight-field label{
+    font-family:'JetBrains Mono', monospace; font-size: 10px; color: var(--slate);
+  }
+  .flight-field input{
+    background: var(--field-bg); border:1px solid var(--line); border-radius:7px;
+    color: var(--paper); font-family:'Heebo', sans-serif; font-size: 13px;
+    padding: 6px 8px;
+  }
+  .flight-notes{
+    width:100%; background: var(--field-bg); border:1px solid var(--line);
+    border-radius: 8px; color: var(--paper); font-family:'Heebo', sans-serif;
+    font-size: 12px; padding: 8px 10px; resize: vertical; min-height: 32px;
+  }
+  .flight-disclaimer{
+    font-size: 11px; color: var(--slate); text-align:center; padding: 4px 10px 14px;
+  }
+
   /* ---- Gear ---- */
   .gear-cat{
     background: var(--navy-2); border:1px solid var(--line);
@@ -370,6 +417,7 @@
     <button class="tab-btn" data-view="budget">הוצאות</button>
     <button class="tab-btn" data-view="gear">ציוד</button>
     <button class="tab-btn" data-view="tasks">משימות</button>
+    <button class="tab-btn" data-view="flights">טיסות</button>
   </div>
 </nav>
 
@@ -403,6 +451,10 @@
   <section class="view" id="view-tasks">
     <div id="task-list"></div>
     <div class="add-row"><button class="add-btn" id="add-task-category">+ הוסף קטגוריה</button></div>
+  </section>
+
+  <section class="view" id="view-flights">
+    <div id="flights-list"></div>
   </section>
 
   <div class="save-note" id="save-note">נשמר</div>
@@ -486,6 +538,7 @@ let gearItems = [];
 let gearCategories = [];
 let taskItems = [];
 let taskCategories = [];
+let flights = [];
 let saveTimer = null;
 
 function defaultGearCategories(){
@@ -501,6 +554,27 @@ function defaultTaskCategories(){
   return [
     { id: cryptoId(), title: '✈️ משימות לפני הטיסה' },
     { id: cryptoId(), title: '📍 משימות בלונדון' }
+  ];
+}
+
+function defaultFlights(){
+  return [
+    {
+      id: cryptoId(), type: 'outbound',
+      airline: 'ישראייר', flightNo: '6H115',
+      date: '2026-08-30',
+      from: 'תל אביב (TLV)', to: 'לונדון לוטון (LTN)',
+      dep: '09:30', arr: '13:40',
+      notes: 'לפי לוח הזמנים הקבוע של הקו — כדאי לוודא שעה מדויקת מול האתר של ישראייר סמוך לטיסה, כי הזמנים נוטים להשתנות.'
+    },
+    {
+      id: cryptoId(), type: 'return',
+      airline: 'ישראייר', flightNo: '6H118',
+      date: '2026-09-07',
+      from: 'לונדון לוטון (LTN)', to: 'תל אביב (TLV)',
+      dep: '13:50', arr: '20:30',
+      notes: 'לפי לוח הזמנים הקבוע של הקו — כדאי לוודא שעה מדויקת מול האתר של ישראייר סמוך לטיסה, כי הזמנים נוטים להשתנות.'
+    }
   ];
 }
 
@@ -558,11 +632,21 @@ async function loadAll(){
     taskCategories = defaultTaskCategories();
     saveTaskCategories();
   }
+  try{
+    const fl = await window.storage.get('london-flights', false);
+    flights = fl ? JSON.parse(fl.value) : [];
+  }catch(e){ flights = []; }
+  if(flights.length === 0){
+    flights = defaultFlights();
+    saveFlights();
+  }
+  migrateStopLinks();
   seedExtraStops();
   renderStops();
   renderBudget();
   renderGear();
   renderTasks();
+  renderFlights();
   updateSyncStatus();
 }
 
@@ -579,7 +663,7 @@ function seedExtraStops(){
   seeds.forEach(seed=>{
     if(dismissedSeeds.includes(seed.seedId)) return;
     if(!stops.some(s=>s.seedId === seed.seedId)){
-      stops.push({ id: cryptoId(), seedId: seed.seedId, name: seed.name, link: seed.link, notes: seed.notes, done:false });
+      stops.push({ id: cryptoId(), seedId: seed.seedId, name: seed.name, links: [{ id: cryptoId(), url: seed.link }], notes: seed.notes, done:false });
       changed = true;
     }
   });
@@ -588,8 +672,21 @@ function seedExtraStops(){
 
 function defaultStops(){
   return [
-    { id: cryptoId(), name: 'משרד / קמפוס', link: '', notes: '', done:false }
+    { id: cryptoId(), name: 'משרד / קמפוס', links: [{ id: cryptoId(), url: '' }], notes: '', done:false }
   ];
+}
+
+// migrate old single-link stops (s.link) to the new s.links array format
+function migrateStopLinks(){
+  let changed = false;
+  stops.forEach(s=>{
+    if(!s.links){
+      s.links = s.link ? [{ id: cryptoId(), url: s.link }] : [{ id: cryptoId(), url: '' }];
+      delete s.link;
+      changed = true;
+    }
+  });
+  if(changed) saveStops();
 }
 
 function cryptoId(){ return Math.random().toString(36).slice(2,10); }
@@ -626,6 +723,9 @@ async function saveTasks(){
 async function saveTaskCategories(){
   await saveWithRetry('london-task-categories', JSON.stringify(taskCategories));
 }
+async function saveFlights(){
+  await saveWithRetry('london-flights', JSON.stringify(flights));
+}
 
 function renderStops(){
   const list = document.getElementById('stops-list');
@@ -634,7 +734,13 @@ function renderStops(){
     return;
   }
   list.innerHTML = stops.map(s => {
-    const gmapsHref = buildMapsHref(s);
+    const links = s.links && s.links.length ? s.links : [{ id: cryptoId(), url: '' }];
+    const linkRows = links.map(l => `
+      <div class="stop-link-row" data-link-id="${l.id}">
+        <input class="stop-addr" data-link-field="url" placeholder="קישור Google Maps או כתובת (למשל GVG7+V9Q London)" value="${escapeHtml(l.url)}">
+        <a class="nav-btn gmaps" target="_blank" href="${buildMapsHref(l.url, s.name)}">פתח</a>
+        <button class="del-stop" data-del-link="${l.id}" title="מחק קישור">×</button>
+      </div>`).join('');
     return `
     <div class="stop ${s.done ? 'done':''} ${s.collapsed ? 'collapsed':''}" data-id="${s.id}" draggable="true">
       <div class="stop-head">
@@ -644,10 +750,10 @@ function renderStops(){
         <button class="del-stop" data-del="${s.id}" title="מחק">×</button>
       </div>
       <div class="stop-body">
-        <input class="stop-addr" data-field="link" placeholder="קישור Google Maps או כתובת (למשל GVG7+V9Q London)" value="${escapeHtml(s.link)}">
+        <div class="stop-links" data-links-for="${s.id}">${linkRows}</div>
+        <button class="stop-add-link" data-add-link="${s.id}">+ הוסף קישור</button>
         <textarea class="stop-notes" data-field="notes" placeholder="הערות...">${escapeHtml(s.notes)}</textarea>
         <div class="stop-actions">
-          <a class="nav-btn gmaps" target="_blank" href="${gmapsHref}">פתח</a>
           <label class="done-toggle"><input type="checkbox" data-done="${s.id}" ${s.done?'checked':''}> בוצע</label>
         </div>
       </div>
@@ -655,10 +761,10 @@ function renderStops(){
   }).join('');
 }
 
-function buildMapsHref(s){
-  const val = (s.link || '').trim();
+function buildMapsHref(val, name){
+  val = (val || '').trim();
   if(/^https?:\/\//i.test(val)) return val;
-  const q = encodeURIComponent(val || s.name || '');
+  const q = encodeURIComponent(val || name || '');
   return `https://www.google.com/maps/search/?api=1&query=${q}`;
 }
 
@@ -777,6 +883,29 @@ function renderTasks(){
   }).join('');
 }
 
+function renderFlights(){
+  const list = document.getElementById('flights-list');
+  if(flights.length === 0){
+    list.innerHTML = '<div class="empty">אין עדיין פרטי טיסה</div>';
+    return;
+  }
+  list.innerHTML = flights.map(f => `
+    <div class="flight-card ${f.type === 'return' ? 'return':''}" data-id="${f.id}">
+      <div class="flight-label">${f.type === 'return' ? 'טיסת חזור' : 'טיסת הלוך'}</div>
+      <div class="flight-route">${escapeHtml(f.from)} ← ${escapeHtml(f.to)}</div>
+      <div class="flight-grid">
+        <div class="flight-field"><label>חברה</label><input data-field="airline" value="${escapeHtml(f.airline)}"></div>
+        <div class="flight-field"><label>מספר טיסה</label><input data-field="flightNo" value="${escapeHtml(f.flightNo)}"></div>
+        <div class="flight-field"><label>תאריך</label><input type="date" data-field="date" value="${escapeHtml(f.date)}"></div>
+        <div class="flight-field"></div>
+        <div class="flight-field"><label>המראה</label><input data-field="dep" placeholder="09:30" value="${escapeHtml(f.dep)}"></div>
+        <div class="flight-field"><label>נחיתה</label><input data-field="arr" placeholder="13:40" value="${escapeHtml(f.arr)}"></div>
+      </div>
+      <textarea class="flight-notes" data-field="notes" placeholder="הערות...">${escapeHtml(f.notes)}</textarea>
+    </div>`).join('');
+  list.insertAdjacentHTML('beforeend', '<div class="flight-disclaimer">שעות לפי לוח הזמנים הרגיל של הקו — כדאי לוודא מול האתר של חברת התעופה סמוך לטיסה</div>');
+}
+
 // tabs
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
@@ -789,7 +918,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 
 // add stop
 document.getElementById('add-stop').addEventListener('click', ()=>{
-  stops.push({ id: cryptoId(), name:'', address:'', notes:'', done:false });
+  stops.push({ id: cryptoId(), name:'', links: [{ id: cryptoId(), url: '' }], notes:'', done:false });
   renderStops();
   saveStops();
   const inputs = document.querySelectorAll('.stop-name');
@@ -826,14 +955,30 @@ document.getElementById('stops-list').addEventListener('input', (e)=>{
   const stopEl = e.target.closest('.stop');
   if(!stopEl) return;
   const id = stopEl.dataset.id;
-  const field = e.target.dataset.field;
-  if(!field) return;
   const s = stops.find(x=>x.id===id);
   if(!s) return;
+
+  const linkRow = e.target.closest('.stop-link-row');
+  if(linkRow && e.target.dataset.linkField){
+    const link = (s.links || []).find(l=>l.id === linkRow.dataset.linkId);
+    if(link){
+      link[e.target.dataset.linkField] = e.target.value;
+      linkRow.querySelector('.gmaps').href = buildMapsHref(link.url, s.name);
+    }
+    clearTimeout(window.__stopSaveT);
+    window.__stopSaveT = setTimeout(saveStops, 500);
+    return;
+  }
+
+  const field = e.target.dataset.field;
+  if(!field) return;
   s[field] = e.target.value;
-  if(field === 'name' || field === 'link'){
-    // update nav link live without full re-render (avoid losing focus)
-    stopEl.querySelector('.gmaps').href = buildMapsHref(s);
+  if(field === 'name'){
+    // update every link's nav href live (name is used as fallback search text)
+    stopEl.querySelectorAll('.stop-link-row').forEach(row=>{
+      const link = (s.links || []).find(l=>l.id === row.dataset.linkId);
+      if(link) row.querySelector('.gmaps').href = buildMapsHref(link.url, s.name);
+    });
   }
   clearTimeout(window.__stopSaveT);
   window.__stopSaveT = setTimeout(saveStops, 500);
@@ -861,6 +1006,34 @@ document.getElementById('stops-list').addEventListener('click', (e)=>{
   if(e.target.dataset.collapse){
     const s = stops.find(x=>x.id === e.target.dataset.collapse);
     if(s){ s.collapsed = !s.collapsed; renderStops(); saveStops(); }
+    return;
+  }
+  if(e.target.dataset.addLink){
+    const s = stops.find(x=>x.id === e.target.dataset.addLink);
+    if(s){
+      if(!s.links) s.links = [];
+      s.links.push({ id: cryptoId(), url: '' });
+      renderStops();
+      saveStops();
+      const container = document.querySelector(`.stop-links[data-links-for="${s.id}"]`);
+      if(container){
+        const inputs = container.querySelectorAll('.stop-addr');
+        if(inputs.length) inputs[inputs.length-1].focus();
+      }
+    }
+    return;
+  }
+  if(e.target.dataset.delLink){
+    const stopEl = e.target.closest('.stop');
+    if(stopEl){
+      const s = stops.find(x=>x.id === stopEl.dataset.id);
+      if(s && s.links){
+        s.links = s.links.filter(l=>l.id !== e.target.dataset.delLink);
+        if(s.links.length === 0) s.links.push({ id: cryptoId(), url: '' });
+        renderStops();
+        saveStops();
+      }
+    }
   }
 });
 
@@ -1113,6 +1286,26 @@ document.getElementById('gear-list').addEventListener('blur', (e)=>{
 document.getElementById('task-list').addEventListener('blur', (e)=>{
   if(e.target.dataset && e.target.dataset.field){ clearTimeout(window.__taskSaveT); saveTasks(); }
   if(e.target.dataset && e.target.dataset.catField){ clearTimeout(window.__taskCatSaveT); saveTaskCategories(); }
+}, true);
+
+// delegated events - flights
+document.getElementById('flights-list').addEventListener('input', (e)=>{
+  const card = e.target.closest('.flight-card');
+  if(!card) return;
+  const field = e.target.dataset.field;
+  if(!field) return;
+  const f = flights.find(x=>x.id === card.dataset.id);
+  if(!f) return;
+  f[field] = e.target.value;
+  if(field === 'from' || field === 'to'){
+    card.querySelector('.flight-route').textContent = `${f.from} ← ${f.to}`;
+  }
+  clearTimeout(window.__flightsSaveT);
+  window.__flightsSaveT = setTimeout(saveFlights, 500);
+});
+
+document.getElementById('flights-list').addEventListener('blur', (e)=>{
+  if(e.target.dataset && e.target.dataset.field){ clearTimeout(window.__flightsSaveT); saveFlights(); }
 }, true);
 
 // theme
