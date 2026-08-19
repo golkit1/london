@@ -325,6 +325,24 @@
     font-size: 11px; color: var(--slate); text-align:center; padding: 4px 10px 14px;
   }
 
+  /* ---- Documents ---- */
+  .doc-card{
+    background: var(--navy-2); border:1px solid var(--line);
+    border-radius: 12px; padding: 14px 16px; margin-bottom: 12px;
+  }
+  .doc-head{ display:flex; align-items:center; gap:8px; margin-bottom: 8px; }
+  .doc-name{
+    flex:1; min-width:0; background: transparent; border:none; color: var(--paper);
+    font-family:'Heebo', sans-serif; font-weight:800; font-size: 15px; padding: 2px 0;
+  }
+  .doc-name:focus{ outline:none; border-bottom: 1px solid var(--gold); }
+  .doc-link-row{ display:flex; align-items:center; gap:6px; margin-bottom: 8px; }
+  .doc-notes{
+    width:100%; background: var(--field-bg); border:1px solid var(--line);
+    border-radius: 8px; color: var(--paper); font-family:'Heebo', sans-serif;
+    font-size: 12px; padding: 7px 9px; resize: vertical; min-height: 32px;
+  }
+
   /* ---- Gear ---- */
   .gear-cat{
     background: var(--navy-2); border:1px solid var(--line);
@@ -418,6 +436,7 @@
     <button class="tab-btn" data-view="gear">ציוד</button>
     <button class="tab-btn" data-view="tasks">משימות</button>
     <button class="tab-btn" data-view="flights">טיסות</button>
+    <button class="tab-btn" data-view="docs">מסמכים</button>
   </div>
 </nav>
 
@@ -455,6 +474,11 @@
 
   <section class="view" id="view-flights">
     <div id="flights-list"></div>
+  </section>
+
+  <section class="view" id="view-docs">
+    <div id="docs-list"></div>
+    <div class="add-row"><button class="add-btn" id="add-doc">+ הוסף מסמך</button></div>
   </section>
 
   <div class="save-note" id="save-note">נשמר</div>
@@ -539,6 +563,7 @@ let gearCategories = [];
 let taskItems = [];
 let taskCategories = [];
 let flights = [];
+let docs = [];
 let saveTimer = null;
 
 function defaultGearCategories(){
@@ -640,6 +665,10 @@ async function loadAll(){
     flights = defaultFlights();
     saveFlights();
   }
+  try{
+    const d = await window.storage.get('london-docs', false);
+    docs = d ? JSON.parse(d.value) : [];
+  }catch(e){ docs = []; }
   migrateStopLinks();
   seedExtraStops();
   renderStops();
@@ -647,6 +676,7 @@ async function loadAll(){
   renderGear();
   renderTasks();
   renderFlights();
+  renderDocs();
   updateSyncStatus();
 }
 
@@ -725,6 +755,9 @@ async function saveTaskCategories(){
 }
 async function saveFlights(){
   await saveWithRetry('london-flights', JSON.stringify(flights));
+}
+async function saveDocs(){
+  await saveWithRetry('london-docs', JSON.stringify(docs));
 }
 
 function renderStops(){
@@ -904,6 +937,26 @@ function renderFlights(){
       <textarea class="flight-notes" data-field="notes" placeholder="הערות...">${escapeHtml(f.notes)}</textarea>
     </div>`).join('');
   list.insertAdjacentHTML('beforeend', '<div class="flight-disclaimer">שעות לפי לוח הזמנים הרגיל של הקו — כדאי לוודא מול האתר של חברת התעופה סמוך לטיסה</div>');
+}
+
+function renderDocs(){
+  const list = document.getElementById('docs-list');
+  if(docs.length === 0){
+    list.innerHTML = '<div class="empty">אין עדיין מסמכים — הוסף קישור למסמך (Google Drive וכו׳)</div>';
+    return;
+  }
+  list.innerHTML = docs.map(d => `
+    <div class="doc-card" data-id="${d.id}">
+      <div class="doc-head">
+        <input class="doc-name" data-field="name" placeholder="שם המסמך" value="${escapeHtml(d.name)}">
+        <button class="del-stop" data-del-doc="${d.id}" title="מחק">×</button>
+      </div>
+      <div class="doc-link-row">
+        <input class="stop-addr" data-field="link" placeholder="קישור (Google Drive וכו׳)" value="${escapeHtml(d.link)}">
+        <a class="nav-btn gmaps" target="_blank" href="${escapeHtml(d.link || '#')}">פתח</a>
+      </div>
+      <textarea class="doc-notes" data-field="notes" placeholder="הערות...">${escapeHtml(d.notes)}</textarea>
+    </div>`).join('');
 }
 
 // tabs
@@ -1306,6 +1359,43 @@ document.getElementById('flights-list').addEventListener('input', (e)=>{
 
 document.getElementById('flights-list').addEventListener('blur', (e)=>{
   if(e.target.dataset && e.target.dataset.field){ clearTimeout(window.__flightsSaveT); saveFlights(); }
+}, true);
+
+// add doc
+document.getElementById('add-doc').addEventListener('click', ()=>{
+  docs.push({ id: cryptoId(), name:'', link:'', notes:'' });
+  renderDocs();
+  saveDocs();
+  const inputs = document.querySelectorAll('.doc-name');
+  if(inputs.length) inputs[inputs.length-1].focus();
+});
+
+// delegated events - docs
+document.getElementById('docs-list').addEventListener('input', (e)=>{
+  const card = e.target.closest('.doc-card');
+  if(!card) return;
+  const field = e.target.dataset.field;
+  if(!field) return;
+  const d = docs.find(x=>x.id === card.dataset.id);
+  if(!d) return;
+  d[field] = e.target.value;
+  if(field === 'link'){
+    card.querySelector('.doc-link-row .gmaps').href = e.target.value || '#';
+  }
+  clearTimeout(window.__docsSaveT);
+  window.__docsSaveT = setTimeout(saveDocs, 500);
+});
+
+document.getElementById('docs-list').addEventListener('click', (e)=>{
+  if(e.target.dataset.delDoc){
+    docs = docs.filter(d=>d.id !== e.target.dataset.delDoc);
+    renderDocs();
+    saveDocs();
+  }
+});
+
+document.getElementById('docs-list').addEventListener('blur', (e)=>{
+  if(e.target.dataset && e.target.dataset.field){ clearTimeout(window.__docsSaveT); saveDocs(); }
 }, true);
 
 // theme
