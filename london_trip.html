@@ -431,6 +431,24 @@
     color: var(--slate); text-transform: uppercase; margin: 4px 0 6px;
   }
   .day-section{ margin-bottom: 14px; }
+  .ref-chips{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom: 8px; }
+  .ref-chip{
+    display:flex; align-items:center; gap:6px;
+    background: var(--field-bg); border:1px solid var(--line); border-radius: 999px;
+    padding: 5px 6px 5px 10px; font-size: 12px; font-family:'Heebo', sans-serif;
+    cursor:pointer; color: var(--paper);
+  }
+  .ref-chip .ref-chip-type{ color: var(--gold); font-size: 10px; font-family:'JetBrains Mono', monospace; }
+  .ref-chip .ref-chip-del{
+    background:none; border:none; color: var(--slate); font-size: 14px; line-height:1; cursor:pointer; padding:0;
+  }
+  .ref-chip.missing{ opacity: 0.5; text-decoration: line-through; }
+  .ref-picker{
+    width:100%; background: var(--field-bg); border:1px solid var(--line);
+    border-radius: 8px; color: var(--paper); font-family:'Heebo', sans-serif;
+    font-size: 13px; padding: 7px 8px; color-scheme: dark;
+  }
+  body.light .ref-picker{ color-scheme: light; }
   .save-note{
     text-align:center; font-size: 11px; color: var(--slate);
     font-family:'JetBrains Mono', monospace; padding-top: 10px;
@@ -1031,10 +1049,11 @@ function tripDayList(){
 const WEEKDAY_LETTERS = ['א','ב','ג','ד','ה','ו','ש'];
 
 function getDay(iso){
-  if(!dayData[iso]) dayData[iso] = { notes:'', items:[], links:[] };
+  if(!dayData[iso]) dayData[iso] = { notes:'', items:[], links:[], refs:[] };
   const d = dayData[iso];
   if(!d.items) d.items = [];
   if(!d.links) d.links = [];
+  if(!d.refs) d.refs = [];
   return d;
 }
 
@@ -1094,6 +1113,24 @@ function renderDayContent(days){
     </div>`;
   }).join('');
 
+  const refChips = day.refs.map(r => {
+    let target = null;
+    if(r.targetType === 'stop') target = stops.find(s=>s.id === r.targetId);
+    else if(r.targetType === 'task') target = taskItems.find(t=>t.id === r.targetId);
+    const missing = !target;
+    const label = target ? (target.name || '(ללא שם)') : 'פריט נמחק';
+    const typeLabel = r.targetType === 'stop' ? 'מקום' : 'משימה';
+    return `
+    <div class="ref-chip ${missing ? 'missing':''}" data-ref-id="${r.id}" data-ref-type="${r.targetType}">
+      <span class="ref-chip-type">${typeLabel}</span>
+      <span>${escapeHtml(label)}</span>
+      <button class="ref-chip-del" data-del-ref="${r.id}" title="הסר קישור">×</button>
+    </div>`;
+  }).join('');
+
+  const stopOptions = stops.map(s => `<option value="stop:${s.id}">${escapeHtml(s.name || '(ללא שם)')}</option>`).join('');
+  const taskOptions = taskItems.map(t => `<option value="task:${t.id}">${escapeHtml(t.name || '(ללא שם)')}</option>`).join('');
+
   document.getElementById('day-content').innerHTML = `
     <div class="day-panel" data-date="${iso}">
       <div class="day-panel-head">
@@ -1103,7 +1140,17 @@ function renderDayContent(days){
       <textarea class="day-notes" data-day-notes="${iso}" placeholder="הערות ותזכורות ליום הזה...">${escapeHtml(day.notes || '')}</textarea>
 
       <div class="day-section">
-        <div class="day-section-label">משימות</div>
+        <div class="day-section-label">קשור למקומות / משימות</div>
+        <div class="ref-chips">${refChips}</div>
+        <select class="ref-picker" data-ref-picker>
+          <option value="">+ קשר מקום או משימה קיימים...</option>
+          ${stopOptions ? `<optgroup label="מקומות">${stopOptions}</optgroup>` : ''}
+          ${taskOptions ? `<optgroup label="משימות">${taskOptions}</optgroup>` : ''}
+        </select>
+      </div>
+
+      <div class="day-section">
+        <div class="day-section-label">משימות היום</div>
         <div class="gear-items">${itemRows}</div>
         <div class="gear-cat-addrow"><button class="gear-add-item" data-add-day-item="${iso}">+ הוסף פריט</button></div>
       </div>
@@ -1622,11 +1669,24 @@ document.getElementById('day-content').addEventListener('input', (e)=>{
 });
 
 document.getElementById('day-content').addEventListener('change', (e)=>{
+  const panel = e.target.closest('.day-panel');
+  if(!panel) return;
   if(e.target.dataset.dayItemDone){
-    const panel = e.target.closest('.day-panel');
     const day = getDay(panel.dataset.date);
     const item = day.items.find(it=>it.id === e.target.dataset.dayItemDone);
     if(item){ item.checked = e.target.checked; renderDayContent(); saveDayData(); }
+    return;
+  }
+  if(e.target.hasAttribute('data-ref-picker')){
+    const val = e.target.value;
+    if(!val) return;
+    const [targetType, targetId] = val.split(':');
+    const day = getDay(panel.dataset.date);
+    if(!day.refs.some(r=>r.targetType === targetType && r.targetId === targetId)){
+      day.refs.push({ id: cryptoId(), targetType, targetId });
+      saveDayData();
+    }
+    renderDayContent();
   }
 });
 
@@ -1635,6 +1695,20 @@ document.getElementById('day-content').addEventListener('click', (e)=>{
   if(!panel) return;
   const iso = panel.dataset.date;
   const day = getDay(iso);
+
+  if(e.target.dataset.delRef){
+    day.refs = day.refs.filter(r=>r.id !== e.target.dataset.delRef);
+    renderDayContent();
+    saveDayData();
+    return;
+  }
+  const chip = e.target.closest('.ref-chip');
+  if(chip && !chip.classList.contains('missing')){
+    const view = chip.dataset.refType === 'stop' ? 'places' : 'tasks';
+    const btn = document.querySelector(`.tab-btn[data-view="${view}"]`);
+    if(btn) btn.click();
+    return;
+  }
 
   if(e.target.dataset.addDayItem !== undefined && e.target.dataset.addDayItem === iso){
     day.items.push({ id: cryptoId(), name:'', checked:false });
