@@ -380,8 +380,11 @@
     padding: 5px 0;
   }
   .task-link-item-label{
-    flex:1; min-width:0; font-family:'Heebo', sans-serif; font-size: 13px; color: var(--slate);
+    flex:1; min-width:0; font-family:'Heebo', sans-serif; font-size: 13px; color: var(--paper);
+    background: transparent; border:none; padding: 4px 0;
   }
+  .task-link-item-label:focus{ outline:none; border-bottom: 1px solid var(--gold); color: var(--paper); }
+  .task-link-item-label::placeholder{ color: var(--slate); }
   .gear-cat-addrow{ display:flex; justify-content:flex-start; margin-top: 8px; }
   .gear-add-item{
     background:none; border:1px dashed var(--line); color: var(--slate);
@@ -810,7 +813,7 @@ function renderStops(){
       return `
       <div class="task-link-item" data-link-id="${l.id}">
         <button class="task-link-toggle ${hasLink ? 'active':''}" data-toggle-stop-link="${l.id}" title="קישור">🔗</button>
-        <span class="task-link-item-label">${hasLink ? 'קישור' : 'קישור חדש'}</span>
+        <input class="task-link-item-label" data-link-field="name" placeholder="שם הקישור" value="${escapeHtml(l.name || '')}">
         <button class="del-stop" data-del-link="${l.id}" title="מחק קישור">×</button>
         <div class="task-link-row ${linkOpen ? '':'hidden'}">
           <input type="text" data-link-field="url" placeholder="קישור Google Maps או כתובת" value="${escapeHtml(l.url)}">
@@ -1082,7 +1085,7 @@ function renderDayContent(days){
     return `
     <div class="task-link-item" data-link-id="${l.id}">
       <button class="task-link-toggle ${hasLink ? 'active':''}" data-toggle-day-link="${l.id}" title="קישור">🔗</button>
-      <span class="task-link-item-label">${hasLink ? 'קישור' : 'קישור חדש'}</span>
+      <input class="task-link-item-label" data-day-link-field="name" placeholder="שם הקישור" value="${escapeHtml(l.name || '')}">
       <button class="del-stop" data-del-day-link="${l.id}" title="מחק קישור">×</button>
       <div class="task-link-row ${linkOpen ? '':'hidden'}">
         <input type="text" data-day-link-field="url" placeholder="הדבק קישור..." value="${escapeHtml(l.url)}">
