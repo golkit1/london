@@ -1082,6 +1082,20 @@ function renderDays(){
   renderDayContent(days);
 }
 
+function gcalAllDayLink(title, iso, details){
+  const start = iso.replace(/-/g, '');
+  const endDate = new Date(iso + 'T12:00:00');
+  endDate.setDate(endDate.getDate() + 1);
+  const end = endDate.toISOString().slice(0,10).replace(/-/g, '');
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: title,
+    dates: `${start}/${end}`
+  });
+  if(details) params.set('details', details);
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
 function renderDayContent(days){
   days = days || tripDayList();
   const iso = activeDayIso;
@@ -1096,6 +1110,7 @@ function renderDayContent(days){
     <div class="gear-row ${it.checked ? 'checked':''}" data-item-id="${it.id}">
       <input type="checkbox" data-day-item-done="${it.id}" ${it.checked?'checked':''}>
       <input class="gear-name" data-day-item-field="name" placeholder="פריט..." value="${escapeHtml(it.name)}">
+      <a class="task-link-toggle" href="${gcalAllDayLink(it.name || 'פריט', iso)}" target="_blank" title="הוסף ליומן Google">📅</a>
       <button class="del-stop" data-del-day-item="${it.id}" title="מחק">×</button>
     </div>`).join('');
 
