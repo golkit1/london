@@ -1130,9 +1130,9 @@ function renderDayContent(days){
     </div>`;
   }).join('');
 
-  const stopOptions = stops.filter(s=>s.name && s.name.trim()).map(s => `<option value="stop:${s.id}">${escapeHtml(s.name)}</option>`).join('');
-  const taskOptions = taskItems.filter(t=>t.name && t.name.trim()).map(t => `<option value="task:${t.id}">${escapeHtml(t.name)}</option>`).join('');
-  const docOptions = docs.filter(d=>d.name && d.name.trim()).map(d => `<option value="doc:${d.id}">${escapeHtml(d.name)}</option>`).join('');
+  const stopOptions = stops.filter(s=>s.name && s.name.trim() && !s.done).map(s => `<option value="stop:${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  const taskOptions = taskItems.filter(t=>t.name && t.name.trim() && !t.checked).map(t => `<option value="task:${t.id}">${escapeHtml(t.name)}</option>`).join('');
+  const docOptions = docs.filter(d=>d.name && d.name.trim() && !d.checked).map(d => `<option value="doc:${d.id}">${escapeHtml(d.name)}</option>`).join('');
 
   document.getElementById('day-content').innerHTML = `
     <div class="day-panel" data-date="${iso}">
