@@ -159,16 +159,7 @@
     padding: 2px 0;
   }
   .stop-name:focus{ outline: none; border-bottom: 1px solid var(--gold); }
-  .stop-addr{
-    font-size: 13px; color: var(--slate);
-    background: var(--field-bg); border:1px solid var(--line); border-radius: 7px;
-    flex:1; min-width:0;
-    padding: 6px 8px;
-    font-family: 'Heebo', sans-serif;
-  }
-  .stop-addr:focus{ outline:none; border-color: var(--gold); }
   .stop-links{ margin-bottom: 6px; }
-  .stop-link-row{ display:flex; align-items:center; gap:6px; margin-bottom:6px; }
   .stop-add-link{
     background:none; border:1px dashed var(--line); color: var(--slate);
     font-family:'Heebo', sans-serif; font-size: 12px; font-weight:700;
@@ -384,12 +375,59 @@
     width: 26px; background: var(--field-bg); border:1px solid var(--line);
     border-radius: 7px; color: var(--gold); text-decoration:none; font-size: 12px;
   }
+  .task-link-item{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    padding: 5px 0;
+  }
+  .task-link-item-label{
+    flex:1; min-width:0; font-family:'Heebo', sans-serif; font-size: 13px; color: var(--slate);
+  }
   .gear-cat-addrow{ display:flex; justify-content:flex-start; margin-top: 8px; }
   .gear-add-item{
     background:none; border:1px dashed var(--line); color: var(--slate);
     font-family:'Heebo', sans-serif; font-size: 12px; font-weight:700;
     padding: 6px 12px; border-radius: 999px; cursor:pointer;
   }
+
+  /* ---- Days ---- */
+  .day-strip{
+    display:flex; gap:8px; overflow-x:auto; padding: 2px 2px 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .day-strip::-webkit-scrollbar{ height: 4px; }
+  .day-pill{
+    flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:6px;
+    width: 52px; padding: 10px 0 12px;
+    background: var(--navy-2); border:1px solid var(--line); border-radius: 16px;
+    cursor:pointer; color: var(--paper);
+  }
+  .day-pill.active{ border-color: var(--gold); background: rgba(201,162,39,0.12); }
+  .day-pill-wd{ font-family:'Heebo', sans-serif; font-size: 11px; color: var(--slate); }
+  .day-pill-num{ font-family:'JetBrains Mono', monospace; font-size: 18px; font-weight:700; }
+  .day-pill-dot{ width:7px; height:7px; border-radius:50%; background: var(--slate); }
+  .day-pill.edge .day-pill-dot{ background: var(--gold); }
+  .day-panel{
+    background: var(--navy-2); border:1px solid var(--line);
+    border-radius: 14px; padding: 16px;
+  }
+  .day-panel-head{ display:flex; align-items:baseline; gap:8px; margin-bottom: 12px; }
+  .day-date{
+    font-family:'JetBrains Mono', monospace; font-size: 12px; color: var(--gold);
+  }
+  .day-weekday{
+    font-family:'Suez One', serif; font-size: 17px;
+  }
+  .day-notes{
+    width:100%; background: var(--field-bg); border:1px solid var(--line);
+    border-radius: 8px; color: var(--paper); font-family:'Heebo', sans-serif;
+    font-size: 13px; padding: 8px 10px; resize: vertical; min-height: 40px;
+    margin-bottom: 14px;
+  }
+  .day-section-label{
+    font-family:'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 1px;
+    color: var(--slate); text-transform: uppercase; margin: 4px 0 6px;
+  }
+  .day-section{ margin-bottom: 14px; }
   .save-note{
     text-align:center; font-size: 11px; color: var(--slate);
     font-family:'JetBrains Mono', monospace; padding-top: 10px;
@@ -419,6 +457,7 @@
     <button class="tab-btn" data-view="tasks">משימות</button>
     <button class="tab-btn" data-view="flights">טיסות</button>
     <button class="tab-btn" data-view="docs">מסמכים</button>
+    <button class="tab-btn" data-view="days">ימים</button>
   </div>
 </nav>
 
@@ -461,6 +500,11 @@
   <section class="view" id="view-docs">
     <div id="docs-list"></div>
     <div class="add-row"><button class="add-btn" id="add-doc">+ הוסף מסמך</button></div>
+  </section>
+
+  <section class="view" id="view-days">
+    <div class="day-strip" id="day-strip"></div>
+    <div id="day-content"></div>
   </section>
 
   <div class="save-note" id="save-note">נשמר</div>
@@ -546,6 +590,8 @@ let taskItems = [];
 let taskCategories = [];
 let flights = [];
 let docs = [];
+let dayData = {};   // iso -> { notes, items:[{id,name,checked}], links:[{id,url,linkOpen}] }
+let activeDayIso = null;
 let saveTimer = null;
 
 function defaultGearCategories(){
@@ -651,6 +697,10 @@ async function loadAll(){
     const d = await window.storage.get('london-docs', false);
     docs = d ? JSON.parse(d.value) : [];
   }catch(e){ docs = []; }
+  try{
+    const dn = await window.storage.get('london-day-data', false);
+    dayData = dn ? JSON.parse(dn.value) : {};
+  }catch(e){ dayData = {}; }
   migrateStopLinks();
   seedExtraStops();
   renderStops();
@@ -659,6 +709,7 @@ async function loadAll(){
   renderTasks();
   renderFlights();
   renderDocs();
+  renderDays();
   updateSyncStatus();
 }
 
@@ -741,6 +792,9 @@ async function saveFlights(){
 async function saveDocs(){
   await saveWithRetry('london-docs', JSON.stringify(docs));
 }
+async function saveDayData(){
+  await saveWithRetry('london-day-data', JSON.stringify(dayData));
+}
 
 function renderStops(){
   const list = document.getElementById('stops-list');
@@ -750,12 +804,20 @@ function renderStops(){
   }
   list.innerHTML = stops.map(s => {
     const links = s.links && s.links.length ? s.links : [{ id: cryptoId(), url: '' }];
-    const linkRows = links.map(l => `
-      <div class="stop-link-row" data-link-id="${l.id}">
-        <input class="stop-addr" data-link-field="url" placeholder="קישור Google Maps או כתובת (למשל GVG7+V9Q London)" value="${escapeHtml(l.url)}">
-        <a class="nav-btn gmaps" target="_blank" href="${buildMapsHref(l.url, s.name)}">פתח</a>
+    const linkRows = links.map(l => {
+      const hasLink = l.url && l.url.trim();
+      const linkOpen = l.linkOpen !== undefined ? l.linkOpen : !!hasLink;
+      return `
+      <div class="task-link-item" data-link-id="${l.id}">
+        <button class="task-link-toggle ${hasLink ? 'active':''}" data-toggle-stop-link="${l.id}" title="קישור">🔗</button>
+        <span class="task-link-item-label">${hasLink ? 'קישור' : 'קישור חדש'}</span>
         <button class="del-stop" data-del-link="${l.id}" title="מחק קישור">×</button>
-      </div>`).join('');
+        <div class="task-link-row ${linkOpen ? '':'hidden'}">
+          <input type="text" data-link-field="url" placeholder="קישור Google Maps או כתובת" value="${escapeHtml(l.url)}">
+          ${hasLink ? `<a class="task-link-open" href="${buildMapsHref(l.url, s.name)}" target="_blank" title="פתח">↗</a>` : ''}
+        </div>
+      </div>`;
+    }).join('');
     return `
     <div class="stop ${s.done ? 'done':''} ${s.collapsed ? 'collapsed':''}" data-id="${s.id}" draggable="true">
       <div class="stop-head">
@@ -945,6 +1007,112 @@ function renderDocs(){
   list.innerHTML = `<div class="gear-cat"><div class="gear-items">${rows}</div></div>`;
 }
 
+function tripDayList(){
+  // derived from the flight dates: first day = outbound date, last day = return date
+  const outbound = flights.find(f=>f.type === 'outbound');
+  const ret = flights.find(f=>f.type === 'return');
+  const start = outbound && outbound.date ? outbound.date : '2026-08-30';
+  const end = ret && ret.date ? ret.date : '2026-09-07';
+  const days = [];
+  let cur = new Date(start + 'T12:00:00');
+  const last = new Date(end + 'T12:00:00');
+  let guard = 0;
+  while(cur <= last && guard < 30){
+    days.push(cur.toISOString().slice(0,10));
+    cur.setDate(cur.getDate() + 1);
+    guard++;
+  }
+  return days;
+}
+
+const WEEKDAY_LETTERS = ['א','ב','ג','ד','ה','ו','ש'];
+
+function getDay(iso){
+  if(!dayData[iso]) dayData[iso] = { notes:'', items:[], links:[] };
+  const d = dayData[iso];
+  if(!d.items) d.items = [];
+  if(!d.links) d.links = [];
+  return d;
+}
+
+function renderDays(){
+  const days = tripDayList();
+  if(days.length === 0){
+    document.getElementById('day-strip').innerHTML = '';
+    document.getElementById('day-content').innerHTML = '<div class="empty">אין תאריכי טיסה מוגדרים</div>';
+    return;
+  }
+  if(!activeDayIso || !days.includes(activeDayIso)) activeDayIso = days[0];
+
+  const strip = document.getElementById('day-strip');
+  strip.innerHTML = days.map((iso, i) => {
+    const date = new Date(iso + 'T12:00:00');
+    const isEdge = i === 0 || i === days.length - 1;
+    return `
+    <button class="day-pill ${iso === activeDayIso ? 'active':''} ${isEdge ? 'edge':''}" data-day="${iso}">
+      <span class="day-pill-wd">${WEEKDAY_LETTERS[date.getDay()]}</span>
+      <span class="day-pill-num">${date.getDate()}</span>
+      <span class="day-pill-dot"></span>
+    </button>`;
+  }).join('');
+
+  renderDayContent(days);
+}
+
+function renderDayContent(days){
+  days = days || tripDayList();
+  const iso = activeDayIso;
+  const idx = days.indexOf(iso);
+  const date = new Date(iso + 'T12:00:00');
+  const weekdayFmt = new Intl.DateTimeFormat('he-IL', { weekday: 'long' });
+  const dateFmt = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'numeric' });
+  const label = idx === 0 ? ' — יום הגעה' : (idx === days.length - 1 ? ' — יום חזרה' : '');
+  const day = getDay(iso);
+
+  const itemRows = day.items.map(it => `
+    <div class="gear-row ${it.checked ? 'checked':''}" data-item-id="${it.id}">
+      <input type="checkbox" data-day-item-done="${it.id}" ${it.checked?'checked':''}>
+      <input class="gear-name" data-day-item-field="name" placeholder="פריט..." value="${escapeHtml(it.name)}">
+      <button class="del-stop" data-del-day-item="${it.id}" title="מחק">×</button>
+    </div>`).join('');
+
+  const linkRows = day.links.map(l => {
+    const hasLink = l.url && l.url.trim();
+    const linkOpen = l.linkOpen !== undefined ? l.linkOpen : !!hasLink;
+    return `
+    <div class="task-link-item" data-link-id="${l.id}">
+      <button class="task-link-toggle ${hasLink ? 'active':''}" data-toggle-day-link="${l.id}" title="קישור">🔗</button>
+      <span class="task-link-item-label">${hasLink ? 'קישור' : 'קישור חדש'}</span>
+      <button class="del-stop" data-del-day-link="${l.id}" title="מחק קישור">×</button>
+      <div class="task-link-row ${linkOpen ? '':'hidden'}">
+        <input type="text" data-day-link-field="url" placeholder="הדבק קישור..." value="${escapeHtml(l.url)}">
+        ${hasLink ? `<a class="task-link-open" href="${escapeHtml(l.url)}" target="_blank" title="פתח">↗</a>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('day-content').innerHTML = `
+    <div class="day-panel" data-date="${iso}">
+      <div class="day-panel-head">
+        <span class="day-weekday">${weekdayFmt.format(date)}</span>
+        <span class="day-date">${dateFmt.format(date)}${label}</span>
+      </div>
+      <textarea class="day-notes" data-day-notes="${iso}" placeholder="הערות ותזכורות ליום הזה...">${escapeHtml(day.notes || '')}</textarea>
+
+      <div class="day-section">
+        <div class="day-section-label">משימות</div>
+        <div class="gear-items">${itemRows}</div>
+        <div class="gear-cat-addrow"><button class="gear-add-item" data-add-day-item="${iso}">+ הוסף פריט</button></div>
+      </div>
+
+      <div class="day-section">
+        <div class="day-section-label">קישורים</div>
+        ${linkRows}
+        <div class="gear-cat-addrow"><button class="gear-add-item" data-add-day-link="${iso}">+ הוסף קישור</button></div>
+      </div>
+    </div>`;
+}
+
 // tabs
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
@@ -997,12 +1165,11 @@ document.getElementById('stops-list').addEventListener('input', (e)=>{
   const s = stops.find(x=>x.id===id);
   if(!s) return;
 
-  const linkRow = e.target.closest('.stop-link-row');
-  if(linkRow && e.target.dataset.linkField){
-    const link = (s.links || []).find(l=>l.id === linkRow.dataset.linkId);
+  const linkItem = e.target.closest('.task-link-item');
+  if(linkItem && e.target.dataset.linkField){
+    const link = (s.links || []).find(l=>l.id === linkItem.dataset.linkId);
     if(link){
       link[e.target.dataset.linkField] = e.target.value;
-      linkRow.querySelector('.gmaps').href = buildMapsHref(link.url, s.name);
     }
     clearTimeout(window.__stopSaveT);
     window.__stopSaveT = setTimeout(saveStops, 500);
@@ -1012,13 +1179,6 @@ document.getElementById('stops-list').addEventListener('input', (e)=>{
   const field = e.target.dataset.field;
   if(!field) return;
   s[field] = e.target.value;
-  if(field === 'name'){
-    // update every link's nav href live (name is used as fallback search text)
-    stopEl.querySelectorAll('.stop-link-row').forEach(row=>{
-      const link = (s.links || []).find(l=>l.id === row.dataset.linkId);
-      if(link) row.querySelector('.gmaps').href = buildMapsHref(link.url, s.name);
-    });
-  }
   clearTimeout(window.__stopSaveT);
   window.__stopSaveT = setTimeout(saveStops, 500);
 });
@@ -1047,16 +1207,31 @@ document.getElementById('stops-list').addEventListener('click', (e)=>{
     if(s){ s.collapsed = !s.collapsed; renderStops(); saveStops(); }
     return;
   }
+  if(e.target.dataset.toggleStopLink){
+    const stopEl = e.target.closest('.stop');
+    if(stopEl){
+      const s = stops.find(x=>x.id === stopEl.dataset.id);
+      const link = s && (s.links || []).find(l=>l.id === e.target.dataset.toggleStopLink);
+      if(link){
+        const hasLink = link.url && link.url.trim();
+        const current = link.linkOpen !== undefined ? link.linkOpen : !!hasLink;
+        link.linkOpen = !current;
+        renderStops();
+        saveStops();
+      }
+    }
+    return;
+  }
   if(e.target.dataset.addLink){
     const s = stops.find(x=>x.id === e.target.dataset.addLink);
     if(s){
       if(!s.links) s.links = [];
-      s.links.push({ id: cryptoId(), url: '' });
+      s.links.push({ id: cryptoId(), url: '', linkOpen: true });
       renderStops();
       saveStops();
       const container = document.querySelector(`.stop-links[data-links-for="${s.id}"]`);
       if(container){
-        const inputs = container.querySelectorAll('.stop-addr');
+        const inputs = container.querySelectorAll('.task-link-row input');
         if(inputs.length) inputs[inputs.length-1].focus();
       }
     }
@@ -1310,7 +1485,7 @@ setupDragReorder(document.getElementById('task-list'), '.gear-cat', ()=>{
 
 // ---- flush pending debounced saves on blur (avoid losing edits on quick refresh) ----
 document.getElementById('stops-list').addEventListener('blur', (e)=>{
-  if(e.target.dataset && e.target.dataset.field){ clearTimeout(window.__stopSaveT); saveStops(); }
+  if(e.target.dataset && (e.target.dataset.field || e.target.dataset.linkField)){ clearTimeout(window.__stopSaveT); saveStops(); }
 }, true);
 
 document.getElementById('budget-list').addEventListener('blur', (e)=>{
@@ -1344,7 +1519,11 @@ document.getElementById('flights-list').addEventListener('input', (e)=>{
 });
 
 document.getElementById('flights-list').addEventListener('blur', (e)=>{
-  if(e.target.dataset && e.target.dataset.field){ clearTimeout(window.__flightsSaveT); saveFlights(); }
+  if(e.target.dataset && e.target.dataset.field){
+    clearTimeout(window.__flightsSaveT);
+    saveFlights();
+    if(e.target.dataset.field === 'date') renderDays();
+  }
 }, true);
 
 // add doc
@@ -1397,6 +1576,108 @@ document.getElementById('docs-list').addEventListener('click', (e)=>{
 
 document.getElementById('docs-list').addEventListener('blur', (e)=>{
   if(e.target.dataset && e.target.dataset.field){ clearTimeout(window.__docsSaveT); saveDocs(); }
+}, true);
+
+// day strip - selecting a day
+document.getElementById('day-strip').addEventListener('click', (e)=>{
+  const btn = e.target.closest('.day-pill');
+  if(!btn) return;
+  activeDayIso = btn.dataset.day;
+  document.querySelectorAll('.day-pill').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  renderDayContent();
+});
+
+// delegated events - day content
+document.getElementById('day-content').addEventListener('input', (e)=>{
+  const panel = e.target.closest('.day-panel');
+  if(!panel) return;
+  const iso = panel.dataset.date;
+  const day = getDay(iso);
+
+  if(e.target.dataset.dayNotes !== undefined){
+    day.notes = e.target.value;
+    clearTimeout(window.__dayDataSaveT);
+    window.__dayDataSaveT = setTimeout(saveDayData, 500);
+    return;
+  }
+  const itemRow = e.target.closest('[data-item-id]');
+  if(itemRow && e.target.dataset.dayItemField){
+    const item = day.items.find(it=>it.id === itemRow.dataset.itemId);
+    if(item) item[e.target.dataset.dayItemField] = e.target.value;
+    clearTimeout(window.__dayDataSaveT);
+    window.__dayDataSaveT = setTimeout(saveDayData, 500);
+    return;
+  }
+  const linkItem = e.target.closest('.task-link-item');
+  if(linkItem && e.target.dataset.dayLinkField){
+    const link = day.links.find(l=>l.id === linkItem.dataset.linkId);
+    if(link) link[e.target.dataset.dayLinkField] = e.target.value;
+    clearTimeout(window.__dayDataSaveT);
+    window.__dayDataSaveT = setTimeout(saveDayData, 500);
+  }
+});
+
+document.getElementById('day-content').addEventListener('change', (e)=>{
+  if(e.target.dataset.dayItemDone){
+    const panel = e.target.closest('.day-panel');
+    const day = getDay(panel.dataset.date);
+    const item = day.items.find(it=>it.id === e.target.dataset.dayItemDone);
+    if(item){ item.checked = e.target.checked; renderDayContent(); saveDayData(); }
+  }
+});
+
+document.getElementById('day-content').addEventListener('click', (e)=>{
+  const panel = e.target.closest('.day-panel');
+  if(!panel) return;
+  const iso = panel.dataset.date;
+  const day = getDay(iso);
+
+  if(e.target.dataset.addDayItem !== undefined && e.target.dataset.addDayItem === iso){
+    day.items.push({ id: cryptoId(), name:'', checked:false });
+    renderDayContent();
+    saveDayData();
+    const inputs = document.querySelectorAll('.day-panel .gear-name');
+    if(inputs.length) inputs[inputs.length-1].focus();
+    return;
+  }
+  if(e.target.dataset.delDayItem){
+    day.items = day.items.filter(it=>it.id !== e.target.dataset.delDayItem);
+    renderDayContent();
+    saveDayData();
+    return;
+  }
+  if(e.target.dataset.addDayLink !== undefined && e.target.dataset.addDayLink === iso){
+    day.links.push({ id: cryptoId(), url:'', linkOpen:true });
+    renderDayContent();
+    saveDayData();
+    return;
+  }
+  if(e.target.dataset.delDayLink){
+    day.links = day.links.filter(l=>l.id !== e.target.dataset.delDayLink);
+    renderDayContent();
+    saveDayData();
+    return;
+  }
+  if(e.target.dataset.toggleDayLink){
+    const link = day.links.find(l=>l.id === e.target.dataset.toggleDayLink);
+    if(link){
+      const hasLink = link.url && link.url.trim();
+      const current = link.linkOpen !== undefined ? link.linkOpen : !!hasLink;
+      link.linkOpen = !current;
+      renderDayContent();
+      saveDayData();
+    }
+  }
+});
+
+document.getElementById('day-content').addEventListener('blur', (e)=>{
+  const panel = e.target.closest('.day-panel');
+  if(!panel) return;
+  if(e.target.dataset.dayNotes !== undefined || e.target.dataset.dayItemField || e.target.dataset.dayLinkField){
+    clearTimeout(window.__dayDataSaveT);
+    saveDayData();
+  }
 }, true);
 
 // theme
