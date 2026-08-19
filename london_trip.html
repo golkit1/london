@@ -89,18 +89,21 @@
     border-bottom: 1px solid var(--line);
   }
   nav.tabs .wrap{
-    display:flex; flex-wrap: wrap; padding:6px 10px; gap: 2px;
-    justify-content:center;
+    display:grid; grid-template-columns: repeat(4, 1fr); gap: 2px;
+    padding:6px 8px;
   }
   .tab-btn{
     flex:0 0 auto;
+    text-align:center;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     background: none; border:none;
     color: var(--slate);
     font-family:'Heebo', sans-serif;
     font-weight: 700;
     font-size: 13px;
-    padding: 8px 8px 7px;
+    padding: 8px 4px 7px;
     cursor:pointer;
     border-bottom: 3px solid transparent;
     transition: color .15s, border-color .15s;
