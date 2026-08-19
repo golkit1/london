@@ -366,7 +366,7 @@
 
 <nav class="tabs">
   <div class="wrap">
-    <button class="tab-btn active" data-view="places">מקומות</button>
+    <button class="tab-btn active" data-view="places">מקומות/לינקים</button>
     <button class="tab-btn" data-view="budget">הוצאות</button>
     <button class="tab-btn" data-view="gear">ציוד</button>
     <button class="tab-btn" data-view="tasks">משימות</button>
@@ -647,7 +647,7 @@ function renderStops(){
         <input class="stop-addr" data-field="link" placeholder="קישור Google Maps או כתובת (למשל GVG7+V9Q London)" value="${escapeHtml(s.link)}">
         <textarea class="stop-notes" data-field="notes" placeholder="הערות...">${escapeHtml(s.notes)}</textarea>
         <div class="stop-actions">
-          <a class="nav-btn gmaps" target="_blank" href="${gmapsHref}">פתח ב-Google Maps</a>
+          <a class="nav-btn gmaps" target="_blank" href="${gmapsHref}">פתח</a>
           <label class="done-toggle"><input type="checkbox" data-done="${s.id}" ${s.done?'checked':''}> בוצע</label>
         </div>
       </div>
