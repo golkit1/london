@@ -231,10 +231,7 @@
     font-family:'JetBrains Mono', monospace; font-size: 13px; color: var(--slate); margin-top:2px;
   }
   .b-row{
-    display:grid;
-    grid-template-columns: 16px 1fr 88px 86px 20px 20px;
-    gap: 6px;
-    align-items:center;
+    display:flex; flex-direction:column; gap:8px;
     background: var(--navy-2);
     border:1px solid var(--line);
     border-radius: 10px;
@@ -250,13 +247,20 @@
     font-family:'Heebo',sans-serif;
     font-size: 13px;
     padding: 7px 8px;
-    width: 100%;
   }
-  .b-row input.num{ font-family:'JetBrains Mono', monospace; text-align:center; }
-  .b-row input.date{ font-family:'JetBrains Mono', monospace; font-size:12px; text-align:center; padding: 7px 4px; color-scheme: dark; }
+  .b-row-top{ display:flex; align-items:center; gap:8px; }
+  .b-row-top input[data-field="desc"]{
+    flex:1; min-width:0; font-weight:700; font-size: 14px;
+  }
+  .b-row-bottom{ display:flex; align-items:center; gap:8px; flex-wrap: wrap; }
+  .b-row input.date{
+    flex: 1 1 110px; min-width: 90px;
+    font-family:'JetBrains Mono', monospace; font-size:12px; text-align:center;
+    padding: 7px 4px; color-scheme: dark;
+  }
   body.light .b-row input.date{ color-scheme: light; }
-  .amt-cell{ display:flex; gap:4px; }
-  .amt-cell input.num{ min-width: 0; padding: 7px 4px; }
+  .amt-cell{ display:flex; gap:4px; flex: 0 0 auto; }
+  .amt-cell input.num{ width: 64px; font-family:'JetBrains Mono', monospace; text-align:center; padding: 7px 4px; }
   .cur-toggle{
     flex-shrink:0; width: 30px;
     background: var(--field-bg); border:1px solid var(--line);
@@ -265,7 +269,7 @@
     cursor: pointer;
   }
   .b-row .b-notes{
-    grid-column: 1 / -1;
+    width:100%;
     resize: vertical;
     min-height: 30px;
     font-size: 12px;
@@ -274,13 +278,9 @@
   .notes-toggle{
     background:none; border:none; color: var(--slate);
     font-size: 14px; cursor:pointer; padding: 2px; line-height:1;
+    margin-inline-start: auto;
   }
   .notes-toggle.active{ color: var(--gold); }
-  .b-head{
-    display:grid; grid-template-columns: 16px 1fr 88px 86px 20px 20px;
-    gap:6px; padding: 0 12px; margin-bottom:6px;
-    font-size: 11px; color: var(--slate); font-family:'JetBrains Mono',monospace;
-  }
 
   .empty{ text-align:center; color: var(--slate); font-size:14px; padding: 30px 10px; }
 
@@ -503,9 +503,6 @@
         <div class="amount" id="total-actual">£0</div>
         <div class="amount-sub" id="total-actual-sub">≈ ₪0</div>
       </div>
-    </div>
-    <div class="b-head">
-      <span></span><span>פריט</span><span style="text-align:center">תאריך</span><span style="text-align:center">סכום</span><span></span><span></span>
     </div>
     <div id="budget-list"></div>
     <div class="add-row"><button class="add-btn" id="add-budget">+ הוסף הוצאה</button></div>
@@ -891,15 +888,19 @@ function renderBudget(){
       const symbol = currency === 'ILS' ? '₪' : '£';
       return `
       <div class="b-row" data-id="${b.id}" draggable="true">
-        <span class="drag-handle" title="גרור לשינוי סדר">⠿</span>
-        <input data-field="desc" placeholder="תיאור" value="${escapeHtml(b.desc)}">
-        <input class="date" type="date" data-field="date" value="${b.date ?? ''}">
-        <div class="amt-cell">
-          <button class="cur-toggle" data-toggle-cur="${b.id}" title="החלף מטבע">${symbol}</button>
-          <input class="num" data-field="actual" inputmode="decimal" placeholder="0" value="${b.actual ?? ''}">
+        <div class="b-row-top">
+          <span class="drag-handle" title="גרור לשינוי סדר">⠿</span>
+          <input data-field="desc" placeholder="תיאור" value="${escapeHtml(b.desc)}">
+          <button class="del-stop" data-del-b="${b.id}" title="מחק">×</button>
         </div>
-        <button class="notes-toggle ${notesOpen ? 'active':''}" data-toggle-notes="${b.id}" title="הערה">📝</button>
-        <button class="del-stop" data-del-b="${b.id}" title="מחק">×</button>
+        <div class="b-row-bottom">
+          <input class="date" type="date" data-field="date" value="${b.date ?? ''}">
+          <div class="amt-cell">
+            <button class="cur-toggle" data-toggle-cur="${b.id}" title="החלף מטבע">${symbol}</button>
+            <input class="num" data-field="actual" inputmode="decimal" placeholder="0" value="${b.actual ?? ''}">
+          </div>
+          <button class="notes-toggle ${notesOpen ? 'active':''}" data-toggle-notes="${b.id}" title="הערה">📝</button>
+        </div>
         <textarea class="b-notes ${notesOpen ? '' : 'hidden'}" data-field="notes" placeholder="הערה...">${escapeHtml(b.notes)}</textarea>
       </div>`;
     }).join('');
