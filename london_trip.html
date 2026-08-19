@@ -102,6 +102,7 @@
     transition: color .15s, border-color .15s;
   }
   .tab-btn.active{ color: var(--paper); border-bottom-color: var(--red); }
+  .tab-btn.dragging{ opacity: 0.4; }
 
   section.view{ display:none; padding: 22px 0 10px; }
   section.view.active{ display:block; }
@@ -471,14 +472,14 @@
 </header>
 
 <nav class="tabs">
-  <div class="wrap">
-    <button class="tab-btn active" data-view="places">מקומות/לינקים</button>
-    <button class="tab-btn" data-view="budget">הוצאות</button>
-    <button class="tab-btn" data-view="gear">ציוד</button>
-    <button class="tab-btn" data-view="tasks">משימות</button>
-    <button class="tab-btn" data-view="flights">טיסות</button>
-    <button class="tab-btn" data-view="docs">מסמכים</button>
-    <button class="tab-btn" data-view="days">ימים</button>
+  <div class="wrap" id="tabs-wrap">
+    <button class="tab-btn active" data-view="places" draggable="true">מקומות/לינקים</button>
+    <button class="tab-btn" data-view="budget" draggable="true">הוצאות</button>
+    <button class="tab-btn" data-view="gear" draggable="true">ציוד</button>
+    <button class="tab-btn" data-view="tasks" draggable="true">משימות</button>
+    <button class="tab-btn" data-view="flights" draggable="true">טיסות</button>
+    <button class="tab-btn" data-view="docs" draggable="true">מסמכים</button>
+    <button class="tab-btn" data-view="days" draggable="true">ימים</button>
   </div>
 </nav>
 
@@ -1117,9 +1118,10 @@ function renderDayContent(days){
     let target = null;
     if(r.targetType === 'stop') target = stops.find(s=>s.id === r.targetId);
     else if(r.targetType === 'task') target = taskItems.find(t=>t.id === r.targetId);
+    else if(r.targetType === 'doc') target = docs.find(d=>d.id === r.targetId);
     const missing = !target;
     const label = target ? (target.name || '(ללא שם)') : 'פריט נמחק';
-    const typeLabel = r.targetType === 'stop' ? 'מקום' : 'משימה';
+    const typeLabel = r.targetType === 'stop' ? 'מקום' : (r.targetType === 'task' ? 'משימה' : 'מסמך');
     return `
     <div class="ref-chip ${missing ? 'missing':''}" data-ref-id="${r.id}" data-ref-type="${r.targetType}">
       <span class="ref-chip-type">${typeLabel}</span>
@@ -1128,8 +1130,9 @@ function renderDayContent(days){
     </div>`;
   }).join('');
 
-  const stopOptions = stops.map(s => `<option value="stop:${s.id}">${escapeHtml(s.name || '(ללא שם)')}</option>`).join('');
-  const taskOptions = taskItems.map(t => `<option value="task:${t.id}">${escapeHtml(t.name || '(ללא שם)')}</option>`).join('');
+  const stopOptions = stops.filter(s=>s.name && s.name.trim()).map(s => `<option value="stop:${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  const taskOptions = taskItems.filter(t=>t.name && t.name.trim()).map(t => `<option value="task:${t.id}">${escapeHtml(t.name)}</option>`).join('');
+  const docOptions = docs.filter(d=>d.name && d.name.trim()).map(d => `<option value="doc:${d.id}">${escapeHtml(d.name)}</option>`).join('');
 
   document.getElementById('day-content').innerHTML = `
     <div class="day-panel" data-date="${iso}">
@@ -1140,12 +1143,13 @@ function renderDayContent(days){
       <textarea class="day-notes" data-day-notes="${iso}" placeholder="הערות ותזכורות ליום הזה...">${escapeHtml(day.notes || '')}</textarea>
 
       <div class="day-section">
-        <div class="day-section-label">קשור למקומות / משימות</div>
+        <div class="day-section-label">קשור למקומות / משימות / מסמכים</div>
         <div class="ref-chips">${refChips}</div>
         <select class="ref-picker" data-ref-picker>
-          <option value="">+ קשר מקום או משימה קיימים...</option>
+          <option value="">+ קשר מקום, משימה או מסמך קיימים...</option>
           ${stopOptions ? `<optgroup label="מקומות">${stopOptions}</optgroup>` : ''}
           ${taskOptions ? `<optgroup label="משימות">${taskOptions}</optgroup>` : ''}
+          ${docOptions ? `<optgroup label="מסמכים">${docOptions}</optgroup>` : ''}
         </select>
       </div>
 
@@ -1172,6 +1176,26 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     document.getElementById('view-' + btn.dataset.view).classList.add('active');
   });
 });
+
+// tab reordering (drag & drop)
+setupDragReorderHorizontal(document.getElementById('tabs-wrap'), '.tab-btn', ()=>{
+  const order = Array.from(document.querySelectorAll('#tabs-wrap .tab-btn')).map(b=>b.dataset.view);
+  saveWithRetry('london-tab-order', JSON.stringify(order));
+});
+
+async function restoreTabOrder(){
+  try{
+    const res = await window.storage.get('london-tab-order', false);
+    if(!res) return;
+    const order = JSON.parse(res.value);
+    const wrap = document.getElementById('tabs-wrap');
+    order.forEach(view=>{
+      const btn = wrap.querySelector(`.tab-btn[data-view="${view}"]`);
+      if(btn) wrap.appendChild(btn);
+    });
+  }catch(e){ console.warn('restore tab order failed', e); }
+}
+restoreTabOrder();
 
 // add stop
 document.getElementById('add-stop').addEventListener('click', ()=>{
@@ -1513,6 +1537,37 @@ function setupDragReorder(container, itemSelector, onDrop){
   });
 }
 
+function setupDragReorderHorizontal(container, itemSelector, onDrop){
+  let dragging = null;
+  container.addEventListener('dragstart', (e)=>{
+    if(!e.target.matches(itemSelector)) return;
+    dragging = e.target;
+    dragging.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    try{ e.dataTransfer.setData('text/plain', ''); }catch(_){}
+  });
+  container.addEventListener('dragend', ()=>{
+    if(dragging) dragging.classList.remove('dragging');
+    dragging = null;
+  });
+  container.addEventListener('dragover', (e)=>{
+    if(!dragging) return;
+    const item = e.target.closest(itemSelector);
+    if(!item || item === dragging || item.parentNode !== dragging.parentNode) return;
+    e.preventDefault();
+    const rect = item.getBoundingClientRect();
+    const rtl = getComputedStyle(document.documentElement).direction === 'rtl';
+    const fromEdge = e.clientX - rect.left;
+    const before = rtl ? (fromEdge > rect.width / 2) : (fromEdge < rect.width / 2);
+    item.parentNode.insertBefore(dragging, before ? item : item.nextSibling);
+  });
+  container.addEventListener('drop', (e)=>{
+    if(!dragging) return;
+    e.preventDefault();
+    onDrop();
+  });
+}
+
 setupDragReorder(document.getElementById('stops-list'), '.stop', ()=>{
   reorderArrayFromDOM(document.getElementById('stops-list'), '.stop', 'id', stops);
   saveStops();
@@ -1704,7 +1759,8 @@ document.getElementById('day-content').addEventListener('click', (e)=>{
   }
   const chip = e.target.closest('.ref-chip');
   if(chip && !chip.classList.contains('missing')){
-    const view = chip.dataset.refType === 'stop' ? 'places' : 'tasks';
+    const typeToView = { stop: 'places', task: 'tasks', doc: 'docs' };
+    const view = typeToView[chip.dataset.refType] || 'places';
     const btn = document.querySelector(`.tab-btn[data-view="${view}"]`);
     if(btn) btn.click();
     return;
